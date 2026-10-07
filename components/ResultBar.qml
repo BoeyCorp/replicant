@@ -30,8 +30,8 @@ Item {
       anchors.left: parent.left
       anchors.verticalCenter: parent.verticalCenter
       width: Style.space(20)
-      text: rb.running ? panel.icRefresh : panel.lastCancelled ? panel.icClose : panel.lastOk ? panel.icCheck : panel.icAlert
-      color: rb.running ? Color.accent : panel.lastCancelled ? panel.warnColor : panel.lastOk ? panel.okColor : Color.urgent
+      text: rb.running ? panel.icRefresh : panel.lastCancelled || panel.lastWarn ? panel.icClose : panel.lastOk ? panel.icCheck : panel.icAlert
+      color: rb.running ? Color.accent : panel.lastCancelled || panel.lastWarn ? panel.warnColor : panel.lastOk ? panel.okColor : Color.urgent
       font.family: panel.ff; font.pixelSize: Style.font.body
       horizontalAlignment: Text.AlignHCenter
       rotation: 0
@@ -48,7 +48,7 @@ Item {
       anchors.rightMargin: Style.space(6)
       anchors.verticalCenter: parent.verticalCenter
       text: rb.running ? panel.stageText : panel.resultLine
-      color: rb.running ? panel.fg : panel.lastCancelled ? panel.warnColor : panel.lastOk ? panel.fg : Color.urgent
+      color: rb.running ? panel.fg : panel.lastCancelled || panel.lastWarn ? panel.warnColor : panel.lastOk ? panel.fg : Color.urgent
       font.family: panel.ff; font.pixelSize: Style.font.caption
       elide: Text.ElideRight
     }
@@ -77,7 +77,7 @@ Item {
         fontSize: Style.font.caption; foreground: panel.dim; fontFamily: panel.ff
         tooltipText: "Previous results in this session, newest last"
         onClicked: panel.openViewer("Result history", (panel.resultHistory || []).map(function(h, i) {
-          return (i + 1) + ". " + h.title + " — " + (h.ok ? "ok" : "failed") + "\n" + h.text
+          return (i + 1) + ". " + h.title + " — " + (h.warn ? "warning" : h.ok ? "ok" : "failed") + "\n" + h.text
         }).join("\n\n───\n\n"), "output")
       }
       Button {

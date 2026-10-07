@@ -400,17 +400,31 @@ cmd_get() {
 
 # Persist a setting through its owning entry, not every tracked file. A failed
 # push can still leave a local commit, so check the saved value before we say
-# that the setting was not saved and print the matching retry command.
+# that the setting was not saved and print the matching retry command. A scope
+# of off is policy, not failure: the live value stays, nothing commits, and the
+# result is a warning (amber) with the scope fix, never a red error.
 cmd_save_setting() {
-  local id="$1" value="$2" subject="$3" owner rc=0 saved=false
-  local setting_entry setting_file
+  local id="$1" value="$2" subject="$3" owner rc=0 saved=false scope=""
+  local setting_entry setting_file warn_msg warn_detail warn_recovery
   local -a save_args=()
   if ! owner=$(setting_save_id "$id"); then
     setting_entry=$(find_setting "$id") || return 1
     setting_file=$(setting_field "$setting_entry" 3)
-    printf 'The setting changed on this machine but has no tracked entry. Retry: replicant track %q && replicant set %q %q\n' \
-      "$setting_file" "$id" "$value" >&2
-    return 1
+    warn_msg="Applied locally, not saved — $id has no tracked entry"
+    warn_detail="The value is live on this machine. Track the file to save it."
+    warn_recovery="replicant track $setting_file && replicant set $id $value"
+    progress_result warning "$warn_msg. $warn_detail" "$warn_recovery"
+    printf '%s\n%s Retry: %s\n' "$warn_msg" "$warn_detail" "$warn_recovery" >&2
+    return 0
+  fi
+  scope=$(scope_for "$owner" 2>/dev/null || echo shared)
+  if [[ "$scope" == "off" ]]; then
+    warn_msg="Applied locally, not saved — $owner is switched off"
+    warn_detail="The value is live on this machine. The repo keeps what it already has. Set $owner to Shared to save it."
+    warn_recovery="replicant scope $owner shared"
+    progress_result warning "$warn_msg. $warn_detail" "$warn_recovery"
+    printf '%s\n%s\nRetry: %s\n' "$warn_msg" "$warn_detail" "$warn_recovery" >&2
+    return 0
   fi
   save_args=(--id "$owner")
   cmd_save "${save_args[@]}" -m "$subject" || rc=$?
@@ -418,10 +432,10 @@ cmd_save_setting() {
 
   setting_value_saved "$id" "$value" && saved=true
   if [[ "$saved" == true ]]; then
-    echo "The setting is saved locally, but the push failed. Retry: replicant push" >&2
+    echo "The setting $id is saved locally, but the push failed. Retry: replicant push" >&2
   else
-    printf 'The setting changed on this machine but was not saved. Retry: replicant save --id %q -m %q\n' \
-      "$owner" "$subject" >&2
+    printf 'The setting %s changed on this machine but was not saved. Retry: replicant save --id %q -m %q\n' \
+      "$id" "$owner" "$subject" >&2
   fi
   return "$rc"
 }

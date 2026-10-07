@@ -750,7 +750,7 @@ function parseProgressLine(line) {
              message: String(o.message || "") }
   }
   if (o.type === "result") {
-    if (["success", "noop", "cancelled", "local-only", "failed"].indexOf(o.outcome) < 0) return null
+    if (["success", "noop", "cancelled", "local-only", "warning", "failed"].indexOf(o.outcome) < 0) return null
     return { type: "result", outcome: o.outcome, message: String(o.message || ""),
              recoveryCommand: o.recoveryCommand === null ? null : String(o.recoveryCommand || "") }
   }

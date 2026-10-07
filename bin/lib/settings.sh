@@ -839,6 +839,20 @@ build_settings_json() {
       fi
     fi
 
+    # A scope of off is policy, not failure, but the row must say so before the
+    # person touches the control. Without this the change applies locally and the
+    # save step warns afterwards, which reads as a surprise error.
+    if [[ -z "$lnotice" && "$file" != "-" && "$available" == true ]]; then
+      scope_rel=""; scope_val=""
+      scope_rel=$(rel_for_src "$file" 2>/dev/null || true)
+      if [[ -n "$scope_rel" ]]; then
+        scope_val=$(scope_for "$scope_rel" 2>/dev/null || echo shared)
+        if [[ "$scope_val" == "off" ]]; then
+          lnotice="Applies locally only — $scope_rel is off. Set it to Shared to save it."
+        fi
+      fi
+    fi
+
     printf '%s\x1f%s\x1f%s\x1f%s\x1f%s\x1f%s\x1f%s\x1f%s\x1f%s\x1f%s\x1f%s\x1f%s\x1f%s\x1f%s\x1f%s\x1f%s\x1f%s\x1f%s\x1f%s\x1f%s\x1f%s\x1f%s\x1f%s\x1f%s\x1f%s\x1f%s\x1f%s\x1f%s\x1f%s\n' \
       "$id" "$group" "$label" "$type" "$unit" "$min" "$max" "$options" "$hint" "$file" \
       "$available" "$implicit" "$value" "$scale" "$disp" "$dvalue" "$dmin" "$dmax" "$dstep" \

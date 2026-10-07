@@ -91,6 +91,12 @@ TestCase {
     compare(state.buffer, "")
   }
 
+  function test_progress_parser_accepts_a_warning_outcome() {
+    var event = R.parseProgressLine('{"protocol":1,"type":"result","outcome":"warning","message":"Applied locally","recoveryCommand":"replicant scope a shared"}')
+    compare(event.outcome, "warning")
+    compare(event.recoveryCommand, "replicant scope a shared")
+  }
+
   function test_progress_parser_accepts_a_generic_run_stage() {
     var event = R.parseProgressLine('{"protocol":1,"type":"stage","stage":"run","cancellable":false,"message":"Running"}')
     compare(event.type, "stage")

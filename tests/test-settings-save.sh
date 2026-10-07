@@ -82,4 +82,24 @@ check "the setting value reaches the profile copy" "1500" \
 check "the setting owner remains explicit" "omarchy/shell.json" \
   "$(setting_save_id idle.lock)"
 
+section "a scope-off setting warns in amber instead of failing in red"
+check_true "the setting entry can switch off" \
+  "$CLI" scope omarchy/shell.json off
+before_warn=$(git -C "$REPO_DIR" rev-parse HEAD)
+set_out=$("$CLI" --progress-json set bar.transparent true 2>&1); set_rc=$?
+check "a scope-off set exits 0" "0" "$set_rc"
+check_contains "a scope-off set emits a warning outcome" '"outcome":"warning"' "$set_out"
+check_contains "a scope-off set names the switched-off entry" "switched off" "$set_out"
+check_contains "a scope-off set names the Shared fix" "replicant scope omarchy/shell.json shared" "$set_out"
+check "the live value still applies" "true" \
+  "$(jq -r '.bar.transparent' "$HOME/.config/omarchy/shell.json")"
+check "the repo copy is left alone" "" \
+  "$(jq -r '.bar.transparent // empty' "$profile_copy")"
+check "a scope-off set commits nothing" "$before_warn" \
+  "$(git -C "$REPO_DIR" rev-parse HEAD)"
+check_contains "the settings JSON warns before the next change" "Applies locally only" \
+  "$(build_settings_json | jq -r '[.[] | select(.id=="bar.transparent")][0].notice')"
+check_true "the setting entry can switch back to shared" \
+  "$CLI" scope omarchy/shell.json shared
+
 summary

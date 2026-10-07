@@ -113,13 +113,15 @@ Item {
         elide: Text.ElideRight
       }
       // Only ever present when the value genuinely cannot do what it says —
-      // see the single rule in build_settings_json. Not a warning strip that
+      // see the rules in build_settings_json. Not a warning strip that
       // is always on; a row that says nothing is a row that is fine.
+      // Amber, never red: a scope-off file applies locally and simply is not
+      // saved, which is policy rather than failure.
       Text {
         width: parent.width
         visible: srow.noticeText !== ""
         text: srow.noticeText
-        color: Color.accent; font.family: panel.ff; font.pixelSize: Style.font.caption
+        color: panel.warnColor; font.family: panel.ff; font.pixelSize: Style.font.caption
         wrapMode: Text.WordWrap
         maximumLineCount: 2
         elide: Text.ElideRight

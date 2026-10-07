@@ -9,8 +9,11 @@
 #   {"protocol":1,"type":"result","outcome":"success","message":"Saved","recoveryCommand":null}
 #
 # Stages are run, scan, encrypt, commit and publish. Outcomes are success,
-# noop, cancelled, local-only and failed. Human-readable output is unchanged:
-# the JSON lines are extra lines on stderr, and every existing message stays.
+# noop, cancelled, local-only, warning and failed. Human-readable output is
+# unchanged: the JSON lines are extra lines on stderr, and every existing
+# message stays. Warning means the live file changed but nothing was committed,
+# by policy rather than by failure (for example a scope-off entry): the panel
+# shows amber, never red.
 
 # progress_enabled: true when the CLI was invoked with the global
 # --progress-json option (REPLICANT_PROGRESS_JSON=1 in the environment).
@@ -44,7 +47,7 @@ progress_result() {
   progress_enabled || return 0
   local outcome="${1:-success}" message="${2:-}" recovery="${3:-}"
   case "$outcome" in
-    success|noop|cancelled|local-only|failed) ;;
+    success|noop|cancelled|local-only|warning|failed) ;;
     *) outcome="failed" ;;
   esac
   if [[ -n "$recovery" ]]; then

@@ -60,6 +60,7 @@ Panel {
   property string lastOutput: ""
   property bool lastOk: true
   property bool lastCancelled: false
+  property bool lastWarn: false
   property string lastTitle: "Output"
   property var resultHistory: []
   readonly property string resultLine: R.resultLine(root.lastOutput, root.lastOk)
@@ -158,7 +159,7 @@ Panel {
       else if (action === "locked") {
         root.lastTitle = "Locked secret"
         root.lastOk = false
-        root.lastCancelled = false
+        root.lastCancelled = false; root.lastWarn = false
         root.lastOutput = actionRow.id + " needs the encryption key before anything acts on it: replicant key import <source>"
       }
       else root.doSaveFile(actionRow.id)
@@ -681,12 +682,16 @@ Panel {
     var text = root.clean(String(out || "") + "\n" + String(err || ""))
     var outcome = result ? String(result.outcome || "") : ""
     root.lastCancelled = outcome === "cancelled"
+    root.lastWarn = outcome === "warning"
     if (outcome === "failed") root.lastOk = false
     else if (outcome === "success") root.lastOk = true
-    else root.lastOk = code === 0 || outcome === "local-only" || outcome === "noop" || outcome === "cancelled"
-    root.lastTitle = outcome === "local-only" ? "Saved locally" : outcome === "cancelled" ? "Cancelled" : label
+    else root.lastOk = code === 0 || outcome === "local-only" || outcome === "noop" || outcome === "cancelled" || outcome === "warning"
+    root.lastTitle = outcome === "local-only" ? "Saved locally" : outcome === "cancelled" ? "Cancelled" : outcome === "warning" ? "Applied locally, not saved" : label
     if (outcome === "local-only") {
       text = String(result.message || "Saved locally, but the push is pending.")
+      if (result.recoveryCommand) text += "\nRetry: " + result.recoveryCommand
+    } else if (outcome === "warning") {
+      text = String(result.message || "Applied locally, but nothing was saved.")
       if (result.recoveryCommand) text += "\nRetry: " + result.recoveryCommand
     } else if (outcome === "cancelled") {
       text = String(result.message || "Cancelled before the commit.")
@@ -694,7 +699,7 @@ Panel {
       text = label + " failed (exit " + code + ")\n" + text
     } else if (text === "") text = label + ": done."
     root.lastOutput = text.length > 20000 ? "…" + text.slice(-20000) : text
-    var entry = { title: root.lastTitle, ok: root.lastOk, text: root.lastOutput.slice(0, 2000) }
+    var entry = { title: root.lastTitle, ok: root.lastOk, warn: root.lastWarn, text: root.lastOutput.slice(0, 2000) }
     var hist = (root.resultHistory || []).slice(-9)
     hist.push(entry)
     root.resultHistory = hist
@@ -789,7 +794,7 @@ Panel {
     root.openTransient("edit")
     var accepted = controller.run("edit", [root.cli, "edit", id, "--wait"], { busy: false })
     if (!accepted) { root.transientView = ""; return false }
-    root.lastOk = true
+    root.lastOk = true; root.lastWarn = false; root.lastCancelled = false
     root.lastOutput = "Opening " + id + " in your editor…"
     root.close()
     return true
@@ -885,7 +890,7 @@ Panel {
 
   function doSetSetting(id, value) {
     root.busyLabel = "Saving " + id + "…"
-    controller.run("setting", [root.cli, "set", id, String(value)], { label: "Setting" })
+    controller.run("setting", [root.cli, "set", id, String(value)], { label: "Setting " + id })
   }
 
   function doRevert(id, to) {
@@ -897,7 +902,7 @@ Panel {
 
   function executeRevert(id, to) {
     root.busyLabel = "Reverting " + id + "…"
-    controller.run("setting", [root.cli, "revert", id, "--to", to], { label: "Setting" })
+    controller.run("setting", [root.cli, "revert", id, "--to", to], { label: "Setting " + id })
   }
 
   function askRestoreFile(row) {
@@ -1236,7 +1241,7 @@ Panel {
   Connections {
     target: controller
     function onStarted(job, meta) {
-      if (meta.background !== true) root.lastCancelled = false
+      if (meta.background !== true) { root.lastCancelled = false; root.lastWarn = false }
     }
     function onCompleted(job, code, stdoutText, stderrText, meta) {
       var text = root.clean(stderrText + "\n" + stdoutText)
@@ -1276,7 +1281,7 @@ Panel {
                    + "\n\nThis installs only the selected revision:\n" + match[1]
                    + "\n\n" + (text || "The marketplace check printed nothing."), "Install")
         } else if (install) {
-          root.lastOk = false; root.lastTitle = "Plugin revision";
+          root.lastOk = false; root.lastWarn = false; root.lastTitle = "Plugin revision";
           root.lastOutput = text || "Could not resolve a full revision. Nothing was fetched."
         }
       } else if (job === "update-check") {
@@ -1285,6 +1290,7 @@ Panel {
           var u = root.updateInfo
           root.lastTitle = "Check for updates"
           root.lastOk = u.fetch_failed !== true
+          root.lastWarn = false; root.lastCancelled = false
           root.lastOutput = u.fetch_failed === true ? "Could not reach " + (u.origin || "GitHub") + ". Try again later."
                           : u.checkout !== true ? "This copy of Replicant is not a git checkout, so it cannot update itself."
                           : u.available === true ? "Replicant " + u.latest + " is available. Press Update in the header."
@@ -1299,24 +1305,24 @@ Panel {
         root.busyLabel = ""
         root.scopePending = Math.max(0, root.scopePending - 1)
         if (meta.outcome === "cancelled") {
-          root.lastOk = true; root.lastCancelled = true; root.lastTitle = "Cancelled"
+          root.lastOk = true; root.lastCancelled = true; root.lastWarn = false; root.lastTitle = "Cancelled"
           root.lastOutput = String(meta.progressResult ? meta.progressResult.message : "Cancelled")
           root.rollbackScopeOverride(meta.jobId || "")
           root.restoreScopeSelection(meta)
-        } else if (code !== 0 && meta.outcome !== "local-only" && meta.outcome !== "noop") {
+        } else if (code !== 0 && meta.outcome !== "local-only" && meta.outcome !== "noop" && meta.outcome !== "warning") {
           root.lastOk = false; root.lastTitle = "Sync"
-          root.lastCancelled = false
+          root.lastCancelled = false; root.lastWarn = false
           root.lastOutput = root.clean("Sync of " + (meta.jobId || "entry") + " failed (exit " + code + ")\n" + stdoutText + "\n" + stderrText)
           root.rollbackScopeOverride(meta.jobId || "")
           root.restoreScopeSelection(meta)
         } else {
           root.scopeAwaitingStatus = true
-          if (meta.outcome === "local-only") root.finish("Sync", code, stdoutText, stderrText, meta.progressResult)
+          if (meta.outcome === "local-only" || meta.outcome === "warning") root.finish("Sync", code, stdoutText, stderrText, meta.progressResult)
           else if (hostWidget) hostWidget.refresh(false)
         }
       } else if (job === "bulk") {
         var bulkScope = String(meta.bulkAction || "").indexOf("scope-") === 0
-        var bulkApplied = code === 0 || meta.outcome === "local-only"
+        var bulkApplied = code === 0 || meta.outcome === "local-only" || meta.outcome === "warning" || meta.outcome === "noop"
         if (bulkScope) root.scopePending = Math.max(0, root.scopePending - 1)
         if (bulkApplied) {
           root.clearSelection()
@@ -1328,11 +1334,12 @@ Panel {
         root.finish(meta.label || "Bulk change", code, stdoutText, stderrText, meta.progressResult)
       } else if (job === "doctor") {
         root.busyLabel = ""; root.lastTitle = "Health check"; root.lastOk = text.indexOf("No problems found.") !== -1
+        root.lastWarn = false; root.lastCancelled = false
         root.lastOutput = text; root.openViewer("Health check", text, "output")
       } else if (job === "copy-path") {
         root.busyLabel = ""
         root.lastTitle = "Copy path"
-        root.lastOk = code === 0
+        root.lastOk = code === 0; root.lastWarn = false; root.lastCancelled = false
         root.lastOutput = code === 0 ? "Copied the path to the clipboard." : "Could not copy the path. Is wl-copy available?"
       } else if (job !== "") {
         root.finish(meta.label || job, code, stdoutText, stderrText, meta.progressResult)
