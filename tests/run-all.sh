@@ -39,6 +39,7 @@ done
 
 section "bench budgets"
 bash "$HERE/bench-status.sh" --check
+bash "$HERE/bench-settings.sh"
 
 section "plugin"
 # The container image has no Omarchy: validation and lint run on a machine

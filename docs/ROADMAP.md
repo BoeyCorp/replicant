@@ -18,6 +18,16 @@
 ## Next
 
 - Improve restore evidence without expanding the public repository format or scope CLI.
+- Complete disposable-session verification for the Settings hardening release.
+
+## Settings hardening (0.40.0)
+
+- Lua writes preserve scalar types, reject damaged managed blocks, and restore
+  the exact backup when reload validation fails.
+- Defaults only come from Omarchy files or registry fallbacks. Current
+  compositor values do not create reset actions.
+- Refreshes parse each Lua settings file once. Float controls accept exact
+  decimal input beside their sliders.
 
 ## Settings expansion (0.39.0)
 

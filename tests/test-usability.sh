@@ -110,6 +110,23 @@ check_true "the header calls failed status unavailable" \
 check_true "the setup screen excludes status failures" \
   grep -qF 'visible: root.asked && root.statusError === "" && !root.ready' "$PANEL"
 
+section "float settings accept an exact value once"
+SETTING_ROW="$ROOT/components/SettingRow.qml"
+check_true "float rows have a decimal input" \
+  grep -qF 'objectName: "setting-float-input"' "$SETTING_ROW"
+check_true "decimal input validates its bounds" \
+  grep -qF 'function validFloatText(text)' "$SETTING_ROW"
+check_true "Enter submits through the settings queue" \
+  grep -qF 'onAccepted: submit()' "$SETTING_ROW"
+check_true "focus loss submits through the settings queue" \
+  grep -qF 'onActiveFocusChanged: if (!activeFocus) submit()' "$SETTING_ROW"
+check_true "Escape restores the current decimal" \
+  grep -qF 'Keys.onEscapePressed:' "$SETTING_ROW"
+check_true "the decimal field avoids duplicate queue entries" \
+  grep -qF 'queuedValue === raw' "$SETTING_ROW"
+check_true "the slider retains decimal precision" \
+  grep -qF 'String(v)' "$SETTING_ROW"
+
 section "deferred panel data starts only when its view needs it"
 open_body=$(sed -n '/^[[:space:]]*function open() {/,/^[[:space:]]*}/p' "$PANEL")
 check_false "opening the panel does not load setup status" grep -qF 'loadSetupStatus' <<<"$open_body"

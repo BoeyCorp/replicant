@@ -16,7 +16,7 @@ FROM archlinux:latest
 # tests generate at runtime. openssh and curl are present so the gate can prove
 # that network access is stubbed, not absent. procps and time provide the
 # benchmark clock. github-cli stands in for gh, which every suite stubs.
-RUN pacman -Syu --noconfirm --needed git jq shellcheck diffutils which qt6-declarative age \
+RUN pacman -Syu --noconfirm --needed git jq shellcheck diffutils which qt6-declarative age lua \
     openssh curl time procps github-cli \
   && pacman -Scc --noconfirm
 

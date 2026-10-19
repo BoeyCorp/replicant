@@ -44,7 +44,8 @@
 #            value is inherited rather than written down anywhere. It doubles as
 #            the value "reset to the Omarchy default" writes when the file
 #            Omarchy ships has nothing to read. For lua-* the Hyprland value in
-#            force is used as a further fallback (see build_settings_json).
+#            force only supplies the current-value display. It is never a
+#            default fallback.
 #   scale    stored-unit -> shown-unit divisor. Omarchy stores idle timers in
 #            seconds; nobody thinks in "600 seconds", so the panel edits them in
 #            minutes (scale 60) and multiplies back before writing. Empty or 1
@@ -290,10 +291,13 @@ REPL_BLOCK_END="-- replicant:settings:end"
 # natural_scroll" is the line `natural_scroll = …` in its table.
 lua_key_of() { printf '%s\n' "${1##*:}"; }
 
-# lua_all_routes <file> — every uncommented `key = value` inside the file as
-# "full:route<TAB>value", in file order, duplicates included. The caller
+# lua_all_routes <file> — every uncommented `key = literal` inside the file as
+# "full:route<TAB>literal", in file order, duplicates included. The caller
 # decides: the managed block takes the last occurrence, outside content
 # requires exactly one (anything else reads as missing, refusing to guess).
+#
+# The literal stays intact. A managed block must retain quotes around enums
+# when a later edit rewrites it. The public readers unquote after this parser.
 lua_all_routes() {
   local file="$1"
   [[ -f "$file" ]] || return 1
@@ -301,8 +305,31 @@ lua_all_routes() {
     {
       orig = $0
       line = orig
-      ci = index(line, "--")
-      if (ci > 0) line = substr(line, 1, ci - 1)
+      # Strip line comments without treating `--` inside a quoted literal as a
+      # comment. A complete multiline comment does not describe configuration.
+      if (in_comment) {
+        ci = index(line, "]]")
+        if (ci == 0) next
+        line = substr(line, ci + 2); in_comment = 0
+      }
+      out = ""; quote = ""; escaped = 0
+      for (ci = 1; ci <= length(line); ci++) {
+        ch = substr(line, ci, 1); nextch = substr(line, ci + 1, 1)
+        if (quote != "") {
+          out = out ch
+          if (escaped) escaped = 0
+          else if (ch == "\\") escaped = 1
+          else if (ch == quote) quote = ""
+          continue
+        }
+        if (ch == "\"" || ch == "\047") { quote = ch; out = out ch; continue }
+        if (ch == "-" && nextch == "-") {
+          if (substr(line, ci + 2, 2) == "[[") in_comment = 1
+          break
+        }
+        out = out ch
+      }
+      line = out
       if (line ~ /^[[:space:]]*$/) next
       tmp = line; opens = gsub(/\{/, "{", tmp)
       tmp = line; closes = gsub(/\}/, "}", tmp)
@@ -323,8 +350,6 @@ lua_all_routes() {
           raw = line; sub(/^[^=]*=/, "", raw)
           sub(/^[[:space:]]*/, "", raw); sub(/[[:space:]]*$/, "", raw)
           sub(/,[[:space:]]*$/, "", raw); sub(/[[:space:]]*$/, "", raw)
-          if (raw ~ /^".*"$/) { sub(/^"/, "", raw); sub(/"$/, "", raw) }
-          else if (raw ~ /^'\''.*'\''$/) { sub(/^'\''/, "", raw); sub(/'\''$/, "", raw) }
           route = ""
           for (i = 1; i <= sp; i++) route = (route == "" ? stack[i] : route ":" stack[i])
           route = (route == "" ? key : route ":" key)
@@ -343,17 +368,39 @@ lua_all_routes() {
   ' "$file"
 }
 
+# lua_literal_value <literal> — turn the supported Lua scalar literals into
+# the value used by the settings registry. The writer keeps the literal above;
+# this boundary prevents an enum such as "us" becoming the Lua variable `us`.
+lua_literal_value() {
+  local literal="$1"
+  if [[ "$literal" =~ ^\"([^\"\\]|\\.)*\"$ ]]; then
+    literal="${literal:1:${#literal}-2}"
+    literal="${literal//\\\"/\"}"
+    literal="${literal//\\\\/\\}"
+  elif [[ "$literal" =~ ^\'([^\'\\]|\\.)*\'$ ]]; then
+    literal="${literal:1:${#literal}-2}"
+    literal="${literal//\\\'/\'}"
+    literal="${literal//\\\\/\\}"
+  fi
+  printf '%s\n' "$literal"
+}
+
 # lua_block_check <file>: 0 block present and well-formed, 2 no block,
 # 1 duplicated or damaged markers (do not modify the file).
 lua_block_check() {
-  local file="$1" s e sl el
+  local file="$1" s e cs ce sl el
   [[ -f "$file" ]] || return 1
   s=$(grep -cF -- "$REPL_BLOCK_START" "$file" 2>/dev/null || true)
   e=$(grep -cF -- "$REPL_BLOCK_END" "$file" 2>/dev/null || true)
   [[ "$s" == "0" && "$e" == "0" ]] && return 2
   [[ "$s" == "1" && "$e" == "1" ]] || return 1
-  sl=$(grep -nF -- "$REPL_BLOCK_START" "$file" | head -n1 | cut -d: -f1)
-  el=$(grep -nF -- "$REPL_BLOCK_END" "$file" | head -n1 | cut -d: -f1)
+  # Extraction accepts only canonical full lines. Treat every other spelling
+  # as damaged, rather than appending a second block that no reader recognises.
+  cs=$(grep -cxF -- "$REPL_BLOCK_START" "$file" 2>/dev/null || true)
+  ce=$(grep -cxF -- "$REPL_BLOCK_END" "$file" 2>/dev/null || true)
+  [[ "$cs" == "1" && "$ce" == "1" ]] || return 1
+  sl=$(grep -nxF -- "$REPL_BLOCK_START" "$file" | cut -d: -f1)
+  el=$(grep -nxF -- "$REPL_BLOCK_END" "$file" | cut -d: -f1)
   [[ -n "$sl" && -n "$el" && "$sl" -lt "$el" ]] || return 1
   return 0
 }
@@ -394,33 +441,60 @@ lua_value_in_routes() {
     [[ "$k" == "$want" ]] && { out="$v"; found=0; }
   done
   (( found == 0 )) || return 1
-  printf '%s\n' "$out"
+  lua_literal_value "$out"
 }
 
-# lua_file_value <file> <route> — block first (last wins), then outside
-# content requiring exactly one occurrence. Anything else fails.
-lua_file_value() {
-  local file="$1" want="$2" rc=0 tmp v n
+# lua_settings_map <file> — resolve manual routes once and let a valid managed
+# block override them. A duplicate manual route remains unavailable. A managed
+# block must contain only one supported literal per route.
+lua_settings_map() {
+  local file="$1" rc=0 tmpdir outside block k v type
   [[ -f "$file" ]] || return 1
-  if lua_block_check "$file"; then
-    tmp=$(mktemp) || return 1
-    lua_block_lines "$file" > "$tmp" 2>/dev/null || { rm -f "$tmp"; return 1; }
-    if v=$(lua_all_routes "$tmp" 2>/dev/null | lua_value_in_routes "$want" 2>/dev/null); then
-      rm -f "$tmp"; printf '%s\n' "$v"; return 0
-    fi
-    rm -f "$tmp"
-  else
-    rc=$?
-    (( rc != 2 )) && return 1
+  lua_block_check "$file"; rc=$?
+  (( rc == 1 )) && return 1
+  tmpdir=$(mktemp -d) || return 1
+  outside="$tmpdir/outside"; block="$tmpdir/block"
+  lua_outside_lines "$file" > "$outside" 2>/dev/null || { rm -rf "$tmpdir"; return 1; }
+  declare -A outside_count=() outside_value=() block_count=() block_value=()
+  while IFS=$'\t' read -r k v; do
+    [[ -n "$k" ]] || continue
+    outside_count["$k"]=$(( ${outside_count[$k]:-0} + 1 ))
+    outside_value["$k"]="$v"
+  done < <(lua_all_routes "$outside" 2>/dev/null || true)
+  if (( rc == 0 )); then
+    lua_block_lines "$file" > "$block" 2>/dev/null || { rm -rf "$tmpdir"; return 1; }
+    while IFS=$'\t' read -r k v; do
+      [[ -n "$k" ]] || continue
+      type=$(lua_setting_type "$file" "$k") || { rm -rf "$tmpdir"; return 1; }
+      lua_literal_matches_type "$type" "$v" || { rm -rf "$tmpdir"; return 1; }
+      block_count["$k"]=$(( ${block_count[$k]:-0} + 1 ))
+      block_value["$k"]="$v"
+    done < <(lua_all_routes "$block" 2>/dev/null || true)
   fi
-  tmp=$(mktemp) || return 1
-  lua_outside_lines "$file" > "$tmp" 2>/dev/null || { rm -f "$tmp"; return 1; }
-  n=$(lua_all_routes "$tmp" 2>/dev/null | awk -F'\t' -v w="$want" '$1 == w { c++ } END { print c+0 }')
-  if [[ "$n" == "1" ]]; then
-    v=$(lua_all_routes "$tmp" 2>/dev/null | awk -F'\t' -v w="$want" '$1 == w { print substr($0, index($0, "\t")+1); exit }')
-    rm -f "$tmp"; printf '%s\n' "$v"; return 0
+  for k in "${!outside_count[@]}"; do
+    [[ "${outside_count[$k]}" == 1 ]] || continue
+    [[ -z "${block_count[$k]:-}" ]] || continue
+    printf '%s\t%s\n' "$k" "$(lua_literal_value "${outside_value[$k]}")"
+  done
+  for k in "${!block_count[@]}"; do
+    [[ "${block_count[$k]}" == 1 ]] || { rm -rf "$tmpdir"; return 1; }
+    printf '%s\t%s\n' "$k" "$(lua_literal_value "${block_value[$k]}")"
+  done
+  rm -rf "$tmpdir"
+}
+
+# lua_file_value <file> <route> — a cache-backed lookup. build_settings_json
+# warms this map once per source, default, and repo file before its readers run.
+lua_file_value() {
+  local file="$1" route="$2" k v entries
+  if [[ "${REPLICANT_SETTINGS_REFRESH:-}" == 1 ]]; then
+    map_lookup "$file" lua "$route"
+    return
   fi
-  rm -f "$tmp"
+  entries=$(lua_settings_map "$file") || return 1
+  while IFS=$'\t' read -r k v; do
+    [[ "$k" == "$route" ]] && { printf '%s\n' "$v"; return 0; }
+  done <<<"$entries"
   return 1
 }
 
@@ -447,6 +521,37 @@ lua_format_value() {
   esac
 }
 
+lua_setting_type() {
+  local file="$1" route="$2" entry
+  local -a fields
+  for entry in "${SETTINGS[@]}"; do
+    IFS='|' read -ra fields <<<"$entry"
+    [[ "${fields[2]}" == "$file" && "${fields[3]}" == "$route" ]] || continue
+    printf '%s\n' "${fields[4]}"
+    return 0
+  done
+  # Saved and installed-default copies have different absolute paths. Routes
+  # remain globally named, so their registry type stays the authority there.
+  for entry in "${SETTINGS[@]}"; do
+    IFS='|' read -ra fields <<<"$entry"
+    [[ "${fields[3]}" == "$route" ]] || continue
+    printf '%s\n' "${fields[4]}"
+    return 0
+  done
+  return 1
+}
+
+lua_literal_matches_type() {
+  local type="$1" literal="$2"
+  case "$type" in
+    lua-int) [[ "$literal" =~ ^-?[0-9]+$ ]] ;;
+    lua-float) [[ "$literal" =~ ^-?[0-9]*\.?[0-9]+$ ]] ;;
+    lua-bool) [[ "$literal" == true || "$literal" == false ]] ;;
+    lua-enum) [[ "$literal" =~ ^\"([^\"\\]|\\.)*\"$ ]] || [[ "$literal" =~ ^\'([^\'\\]|\\.)*\'$ ]] ;;
+    *) return 1 ;;
+  esac
+}
+
 # lua_block_write <file> <route> <formatted-value> — replace the managed block
 # deterministically, preserving every byte outside it. The block always sits
 # at the end of the file. Rejects duplicated/damaged markers without touching
@@ -470,9 +575,13 @@ lua_block_write() {
   if (( rc == 0 )); then
     local blk="$tmpdir/blkroutes"
     lua_block_lines "$file" > "$blk" 2>/dev/null || { rm -rf "$tmpdir"; return 1; }
-    local k v
+    local k v type
     while IFS=$'\t' read -r k v; do
-      [[ -n "$k" ]] && vals["$k"]="$v"
+      [[ -n "$k" ]] || continue
+      type=$(lua_setting_type "$file" "$k") || { rm -rf "$tmpdir"; return 1; }
+      lua_literal_matches_type "$type" "$v" || { rm -rf "$tmpdir"; return 1; }
+      [[ -z "${vals[$k]+x}" ]] || { rm -rf "$tmpdir"; return 1; }
+      vals["$k"]="$v"
     done < <(lua_all_routes "$blk" 2>/dev/null || true)
   fi
   vals["$route"]="$formatted"
@@ -649,6 +758,14 @@ hypr_in_force() {
   esac
 }
 
+# hypr_config_errors — return only actual configuration errors. A failed query
+# is unsafe: the caller cannot prove that the candidate loaded correctly.
+hypr_config_errors() {
+  local out
+  out=$(timeout 2 hyprctl configerrors 2>&1) || return 1
+  printf '%s\n' "$out" | awk '$0 !~ /^no errors[[:space:]]*$/ && $0 != ""'
+}
+
 # hypr_overrider <route> <own-file> — the tracked Hyprland file, other than the
 # setting's own, holding the same full route. Found modules are asked first:
 # OmaSettings' omasettings.lua is loaded last, which is why it wins.
@@ -702,16 +819,21 @@ setting_options() {
   # layouts this machine knows (`@x11-layouts` in the registry). A fixed list
   # of eight layouts left anyone outside it with a control that could not show
   # or keep the value.
-  local entry="$1" opts
-  if [[ "$(setting_field "$entry" 5)" == "theme" ]]; then
-    omarchy-theme-list 2>/dev/null | paste -sd, - || true
+  local entry="$1" opts cache_key="$1"
+  if [[ "${REPLICANT_SETTINGS_REFRESH:-}" == 1 && -v "SETTING_OPTIONS_CACHE[$cache_key]" ]]; then
+    printf '%s\n' "${SETTING_OPTIONS_CACHE[$cache_key]}"
     return 0
   fi
-  opts=$(setting_field "$entry" 10)
-  if [[ "$opts" == "@x11-layouts" ]]; then
-    opts=$(localectl list-x11-keymap-layouts 2>/dev/null | paste -sd, - || true)
-    [[ -n "$opts" ]] || opts="us,es,gb,de,fr,it,pt,latam"
+  if [[ "$(setting_field "$entry" 5)" == "theme" ]]; then
+    opts=$(omarchy-theme-list 2>/dev/null | paste -sd, - || true)
+  else
+    opts=$(setting_field "$entry" 10)
+    if [[ "$opts" == "@x11-layouts" ]]; then
+      opts=$(localectl list-x11-keymap-layouts 2>/dev/null | paste -sd, - || true)
+      [[ -n "$opts" ]] || opts="us,es,gb,de,fr,it,pt,latam"
+    fi
   fi
+  [[ "${REPLICANT_SETTINGS_REFRESH:-}" == 1 ]] && SETTING_OPTIONS_CACHE["$cache_key"]="$opts"
   printf '%s\n' "$opts"
 }
 
@@ -829,7 +951,7 @@ set_setting_value() {
       apply=""
       ;;
     lua-int|lua-float|lua-bool|lua-enum)
-      local out_tmp out_n
+      local out_tmp out_n backup_path new_errors
       [[ -f "$file" ]] || { echo "file not found: $file" >&2; return 1; }
       if ! command -v hyprctl >/dev/null 2>&1; then
         echo "$1: Hyprland is not available — left $file untouched, nothing was applied" >&2
@@ -847,44 +969,57 @@ set_setting_value() {
         rm -f "$out_tmp"
       }
       formatted=$(lua_format_value "$type" "$value")
-      before_errs=$(hyprctl configerrors 2>/dev/null | grep -v '^no errors' || true)
-      backup_before_write "$file"
+      before_errs=$(hypr_config_errors) || { echo "$1: could not validate the current Hyprland configuration" >&2; return 1; }
+      backup_before_write "$file" || { echo "$1: could not back up $file" >&2; return 1; }
+      # The backup function gives each file a unique timestamped name. Capture
+      # this exact copy before the replacement so rollback never guesses.
+      backup_path=$(ls -1t -- "$file".bak.* 2>/dev/null | head -n1 || true)
+      [[ -n "$backup_path" ]] || { echo "$1: backup for $file is missing" >&2; return 1; }
       if ! lua_block_write "$file" "$path" "$formatted"; then
         echo "$1: '$path' markers are duplicated or damaged in $file — left untouched" >&2
         return 1
       fi
-      if ! bash -c "$apply" >/dev/null 2>&1; then
-        # shellcheck disable=SC2012  # names are ours: <file>.bak.<epoch>, no spaces
-        newest=$(ls -1t -- "$file".bak.* 2>/dev/null | head -n1 || true)
-        [[ -n "$newest" ]] && cp -a -- "$newest" "$file" 2>/dev/null || true
+      if ! timeout 2 bash -c "$apply" >/dev/null 2>&1; then
+        if ! cp -a -- "$backup_path" "$file"; then
+          echo "$1: '$apply' failed and Replicant could not restore $file from $backup_path" >&2
+          return 1
+        fi
         invalidate_file_maps
-        bash -c "$apply" >/dev/null 2>&1 || true
+        timeout 2 bash -c "$apply" >/dev/null 2>&1 || true
         echo "$1: '$apply' failed — restored $file, nothing was applied" >&2
         return 1
       fi
-      after_errs=$(hyprctl configerrors 2>/dev/null | grep -v '^no errors' || true)
-      if [[ -n "$after_errs" ]]; then
-        is_new=0
-        if [[ -z "$before_errs" ]]; then is_new=1
-        elif ! grep -Fxqf <(printf '%s\n' "$before_errs") <(printf '%s\n' "$after_errs") 2>/dev/null; then
-          # after has lines not in before; confirm with comm-style check
-          while IFS= read -r line; do
-            [[ -n "$line" ]] || continue
-            grep -Fxq -- "$line" <(printf '%s\n' "$before_errs") 2>/dev/null || { is_new=1; break; }
-          done < <(printf '%s\n' "$after_errs")
-        fi
-        if (( is_new )); then
-          # shellcheck disable=SC2012  # names are ours: <file>.bak.<epoch>, no spaces
-          newest=$(ls -1t -- "$file".bak.* 2>/dev/null | head -n1 || true)
-          [[ -n "$newest" ]] && cp -a -- "$newest" "$file" 2>/dev/null || true
-          invalidate_file_maps
-          bash -c "$apply" >/dev/null 2>&1 || true
-          echo "$1: Hyprland reported new config errors — restored $file, nothing was saved" >&2
-          printf '%s\n' "$after_errs" >&2
+      after_errs=$(hypr_config_errors) || {
+        if ! cp -a -- "$backup_path" "$file"; then
+          echo "$1: could not validate the candidate and Replicant could not restore $file from $backup_path" >&2
           return 1
         fi
+        invalidate_file_maps
+        timeout 2 bash -c "$apply" >/dev/null 2>&1 || true
+        echo "$1: could not validate the candidate — restored $file, nothing was saved" >&2
+        return 1
+      }
+      new_errors=""
+      while IFS= read -r line; do
+        [[ -n "$line" ]] || continue
+        grep -Fxq -- "$line" <(printf '%s\n' "$before_errs") 2>/dev/null || new_errors+="$line"$'\n'
+      done <<<"$after_errs"
+      if [[ -n "$new_errors" ]]; then
+        if ! cp -a -- "$backup_path" "$file"; then
+          echo "$1: Hyprland reported new config errors and Replicant could not restore $file from $backup_path" >&2
+          return 1
+        fi
+        invalidate_file_maps
+        timeout 2 bash -c "$apply" >/dev/null 2>&1 || true
+        echo "$1: Hyprland reported new config errors — restored $file, nothing was saved" >&2
+        printf '%s' "$new_errors" >&2
+        return 1
       fi
       apply=""
+      # A reader can have warmed this file while it validated defaults or
+      # notices. Drop that snapshot after a successful replacement so the
+      # next read never reports the manual value above the managed block.
+      invalidate_file_maps
       ;;
     number|bool)
       [[ -f "$file" ]] || { echo "file not found: $file" >&2; return 1; }
@@ -973,7 +1108,8 @@ human_value() {
 # same as parsing one key out of it: the process was the expense, not the work.
 declare -gA FILE_MAP_CACHE=()
 declare -gA FILE_MAP_LOADED=()
-invalidate_file_maps() { FILE_MAP_CACHE=(); FILE_MAP_LOADED=(); }
+declare -gA SETTING_OPTIONS_CACHE=()
+invalidate_file_maps() { FILE_MAP_CACHE=(); FILE_MAP_LOADED=(); SETTING_OPTIONS_CACHE=(); }
 
 # Command substitution forks, and a fork copies the caches rather than sharing
 # them: a map built inside `$(file_map ...)` dies with the subshell, so the
@@ -1014,12 +1150,7 @@ load_file_map() {
               print (sect == "" ? k : sect "." k) "\t" v
             }' "$file" 2>/dev/null || true) ;;
         lua)
-          # Full-route parsing (see lua_all_routes): a key seen more than once
-          # is dropped rather than guessed at. Block-aware reads bypass this
-          # map via lua_file_value; this stays for direct file_map callers.
-          FILE_MAP_CACHE[$key]=$(lua_all_routes "$file" 2>/dev/null | awk -F'\t' '
-            { n[$1]++; val[$1] = $2 }
-            END { for (k in n) if (n[k] == 1) print k "\t" val[k] }' 2>/dev/null || true) ;;
+          FILE_MAP_CACHE[$key]=$(lua_settings_map "$file" 2>/dev/null || true) ;;
       esac
     fi
   fi
@@ -1033,17 +1164,18 @@ file_map() {
 }
 
 # Parse, in this shell, every file the registry will be read from: the live one,
-# Omarchy's default and the copy in the repo. JSON/TOML files are parsed once;
-# Lua files bypass the cache via lua_file_value (block-aware, full routes).
+# Omarchy's default and the copy in the repo. The cache preserves managed-block
+# precedence and lets all Lua routes in one file share the same parse.
 map_kind_for_type() {
   case "$1" in
     toml-int|toml-float|ini-enum)  echo toml ;;
     number|bool|enum)              echo json ;;
+    lua-int|lua-float|lua-bool|lua-enum) echo lua ;;
     *)                             echo "" ;;
   esac
 }
 warm_setting_file_maps() {
-  local entry file type kind def rel copy
+  local entry file type kind def rel copy om
   for entry in "${SETTINGS[@]}"; do
     file=$(setting_field "$entry" 3); type=$(setting_field "$entry" 5)
     [[ "$file" != "-" ]] || continue
@@ -1051,6 +1183,14 @@ warm_setting_file_maps() {
     load_file_map "$file" "$kind"
     def=$(default_for_src "$file" 2>/dev/null || true)
     [[ -n "$def" ]] && load_file_map "$def" "$kind"
+    # Omarchy's config copy can contain only comments while default/hypr has
+    # the active literal values. setting_default_value checks that sibling, so
+    # warm it once here instead of reparsing it for every Lua setting.
+    if [[ "$type" == lua-* && "$file" == "$HOME/.config/"* ]]; then
+      om="${OMARCHY_PATH:-/usr/share/omarchy}"
+      rel="${file#$HOME/.config/}"
+      [[ -f "$om/default/$rel" ]] && load_file_map "$om/default/$rel" "$kind"
+    fi
     rel=$(rel_for_src "$file" 2>/dev/null || true)
     [[ -n "$rel" ]] && { copy=$(repo_copy_for_rel "$rel"); load_file_map "$copy" "$kind"; }
   done
@@ -1093,10 +1233,9 @@ read_setting_from() {
 
 # The value this setting would have on a machine that had never been touched.
 # Read out of the file Omarchy actually ships where there is one; otherwise the
-# registry's `fallback`, which is the shell's own built-in default. For lua-*
-# the installed Omarchy config comes first and the Hyprland value in force is
-# the last fallback, so a clean install with only commented examples still
-# shows what the session does.
+# registry's `fallback`, which is the shell's own built-in default. A current
+# Hyprland value can describe the current session, but cannot describe what
+# Omarchy ships, so it is never a default fallback.
 setting_default_value() {
   local entry; entry=$(find_setting "$1") || return 1
   local file def type path
@@ -1140,9 +1279,8 @@ setting_default_value() {
   fi
   def=$(setting_field "$entry" 13)
   [[ -n "$def" ]] && { printf '%s\n' "$def"; return 0; }
-  if [[ "$type" == lua-* ]]; then
-    hypr_in_force "$path" 2>/dev/null && return 0
-  fi
+  # The active compositor value is useful for the current-value display. It is
+  # never an Omarchy default: an override must not remove or invent a reset.
   return 1
 }
 
@@ -1227,6 +1365,9 @@ settings_display_step() {
 }
 
 build_settings_json() {
+  local prior_refresh="${REPLICANT_SETTINGS_REFRESH-}" had_prior_refresh=0
+  [[ -v REPLICANT_SETTINGS_REFRESH ]] && had_prior_refresh=1
+  export REPLICANT_SETTINGS_REFRESH=1
   invalidate_file_maps
   warm_setting_file_maps
   # One jq invocation for the whole array, not one per setting. The panel polls
@@ -1451,6 +1592,11 @@ build_settings_json() {
         # the file says (see lnotice above).
         elif .lua_notice != "" then .lua_notice
         else "" end) } | del(.lua_notice))'
+  local rc=$?
+  if (( had_prior_refresh )); then export REPLICANT_SETTINGS_REFRESH="$prior_refresh"
+  else unset REPLICANT_SETTINGS_REFRESH
+  fi
+  return "$rc"
 }
 
 # lid_blocked_by — who, if anyone, is holding a `block` inhibitor on the lid

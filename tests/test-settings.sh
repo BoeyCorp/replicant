@@ -298,6 +298,9 @@ check "a key with no shipped default uses the fallback" "26" "$(setting_default_
 check "…and offers no button while it matches" "false" \
   "$(printf '%s' "$sj" | jq -r '[.[] | select(.id=="bar.sizeHorizontal")][0].can_revert_default')"
 check_false "a setting with neither has no default" setting_default_value input.repeatRate
+printf '%s\t%s\n' input:repeat_rate '{"option":"input:repeat_rate","int":99,"set":true}' > "$HYPRCTL_OPTIONS"
+check_false "an active Hyprland value is not a default" setting_default_value input.repeatRate
+rm -f "$HYPRCTL_OPTIONS"
 
 # What the repo has, read out of the saved copy.
 mkdir -p "$CONFIG_DIR/omarchy"
@@ -675,12 +678,47 @@ check "first key still there" "55" "$(lua_file_value "$HOME/.config/hypr/input.l
 check "manual header kept" "1" "$(grep -c 'manual header survives' "$HOME/.config/hypr/input.lua")"
 check "one start marker" "1" "$(grep -cF -- '-- replicant:settings:start' "$HOME/.config/hypr/input.lua")"
 check "one end marker" "1" "$(grep -cF -- '-- replicant:settings:end' "$HOME/.config/hypr/input.lua")"
+set_setting_value input.kbLayout us >/dev/null 2>&1
+set_setting_value input.accelProfile flat >/dev/null 2>&1
+check "later writes preserve an earlier enum" "us" "$(lua_file_value "$HOME/.config/hypr/input.lua" "input:kb_layout")"
+check "later writes preserve a second enum" "flat" "$(lua_file_value "$HOME/.config/hypr/input.lua" "input:accel_profile")"
+if command -v lua >/dev/null 2>&1; then
+  if lua - "$HOME/.config/hypr/input.lua" <<'LUA' >/dev/null 2>&1
+hl = { config = function(value)
+  if value.input.kb_layout ~= nil then assert(type(value.input.kb_layout) == "string") end
+  if value.input.accel_profile ~= nil then assert(type(value.input.accel_profile) == "string") end
+end }
+assert(loadfile(arg[1]))()
+LUA
+  then t_ok "generated Lua preserves enum types"; else t_bad "generated Lua preserves enum types"; fi
+else
+  t_bad "Lua interpreter is available for generated-block tests"
+fi
 printf '%s\n' '-- replicant:settings:start' >> "$HOME/.config/hypr/input.lua"
 cp "$HOME/.config/hypr/input.lua" /tmp/replicant-block-dup.lua
 check_false "duplicated markers refuse a write" set_setting_value input.repeatRate 60
 check_true "duplicated markers leave the file alone" cmp -s /tmp/replicant-block-dup.lua "$HOME/.config/hypr/input.lua"
 printf 'hl.config({ input = { repeat_rate = 40 } })\n-- replicant:settings:start\nbroken\n' > "$HOME/.config/hypr/input.lua"
 check_false "damaged markers refuse a write" set_setting_value input.repeatRate 60
+printf '%s\n' '  -- replicant:settings:start' 'hl.config({ input = { repeat_rate = 40 } })' '  -- replicant:settings:end' > "$HOME/.config/hypr/input.lua"
+cp "$HOME/.config/hypr/input.lua" /tmp/replicant-block-indented.lua
+check_false "indented markers refuse a write" set_setting_value input.repeatRate 60
+check_true "indented markers leave the file alone" cmp -s /tmp/replicant-block-indented.lua "$HOME/.config/hypr/input.lua"
+cat > "$HOME/.config/hypr/input.lua" <<'LUA'
+--[[
+hl.config({
+  input = { repeat_rate = 99 },
+})
+]]
+hl.config({
+  input = {
+    repeat_rate = 40,
+    kb_layout = "es--comment",
+  },
+})
+LUA
+check "multiline comments do not create settings" "40" "$(lua_file_value "$HOME/.config/hypr/input.lua" "input:repeat_rate")"
+check "quoted comment delimiters remain literal" "es--comment" "$(lua_file_value "$HOME/.config/hypr/input.lua" "input:kb_layout")"
 # Restore a good file for the sections below.
 cat > "$HOME/.config/hypr/input.lua" <<'LUA'
 hl.config({
@@ -796,6 +834,40 @@ set_setting_value input.repeatRate 70 >/dev/null 2>&1; rc=$?
 check "pre-existing errors do not roll back" "0" "$rc"
 check "value lands despite old errors" "70" "$(lua_file_value "$HOME/.config/hypr/input.lua" "input:repeat_rate")"
 unset HYPRCTL_CONFIGERRORS
+# A retained old error must not hide a new error from this change.
+cat > "$TMP/fakebin/hyprctl" <<'EOF'
+#!/bin/bash
+if [[ "$1" == reload ]]; then exit 0; fi
+if [[ "$1" == getoption ]]; then printf '{"option":"x","int":40,"set":true}'; exit 0; fi
+if [[ "$1" == configerrors ]]; then
+  echo "error: old"
+  grep -q "repeat_rate = 71" "$HOME/.config/hypr/input.lua" 2>/dev/null && echo "error: new"
+  exit 0
+fi
+exit 0
+EOF
+chmod +x "$TMP/fakebin/hyprctl"
+set_setting_value input.repeatRate 71 >/dev/null 2>&1; rc=$?
+check "mixed old and new errors reject the change" "1" "$rc"
+check "mixed errors restore the prior value" "70" "$(lua_file_value "$HOME/.config/hypr/input.lua" "input:repeat_rate")"
+# A failed error query cannot prove that the candidate is valid. It must roll
+# back just like a newly reported error.
+cat > "$TMP/fakebin/hyprctl" <<'EOF'
+#!/bin/bash
+if [[ "$1" == reload ]]; then exit 0; fi
+if [[ "$1" == getoption ]]; then printf '{"option":"x","int":40,"set":true}'; exit 0; fi
+if [[ "$1" == configerrors ]]; then
+  grep -q "repeat_rate = 72" "$HOME/.config/hypr/input.lua" 2>/dev/null && exit 1
+  echo "no errors"; exit 0
+fi
+exit 0
+EOF
+chmod +x "$TMP/fakebin/hyprctl"
+set_setting_value input.repeatRate 72 >/dev/null 2>&1; rc=$?
+check "failed candidate error query rejects the change" "1" "$rc"
+check "failed candidate error query restores the value" "70" "$(lua_file_value "$HOME/.config/hypr/input.lua" "input:repeat_rate")"
+cp /tmp/replicant-hyprctl-stub.bak "$TMP/fakebin/hyprctl"
+chmod +x "$TMP/fakebin/hyprctl"
 # Without Hyprland there is no applied to claim: hide both test stubs so PATH
 # has no hyprctl, then restore. A real /usr/bin/hyprctl still skips here and
 # is covered in CI where no real Hyprland exists.

@@ -234,7 +234,8 @@ Panel, **Restore**, *Preview* shows what would change, and touches nothing.
 - **Settings**: panel, **Settings**. A change is written to the real config file, applied, and
   committed. The CLI does the same with `replicant set <id> <value>`, in the stored unit.
   Hyprland values live in a managed block at the end of `hypr/input.lua` and
-  `hypr/looknfeel.lua`; everything outside it is left byte-for-byte alone.
+  `hypr/looknfeel.lua`; everything outside it is left byte-for-byte alone. Float
+  settings accept an exact decimal beside the slider.
 - **Scopes and profiles**: open a row in **Configs** and pick **Shared**, your profile, or **Off**.
   The row shows the change at once. Off publishes that policy once, then future saves skip the file.
   Git keeps the last saved copy. In a terminal: `scope` and `profile`.

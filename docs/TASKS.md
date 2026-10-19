@@ -3,6 +3,18 @@
 Complete one small, verifiable task at a time. When a task is complete, update its checkbox and
 `ROADMAP.md` in the same change.
 
+## Settings hardening after 0.39.0
+
+Follow the [Settings hardening plan](settings-hardening-plan.md) for scope, acceptance criteria, and release checks.
+
+- [x] Reproduce the reviewed defects with regression tests.
+- [x] Preserve Lua types, validate markers consistently, and correct error detection and rollback.
+- [x] Separate known defaults from active session values.
+- [x] Validate and release the corrective changes.
+- [x] Measure initialized repositories and cache Lua reads within each refresh.
+- [x] Add precise decimal input and interaction tests.
+- [ ] Complete automated and disposable-session verification for the improvement release.
+
 ## Usability patch
 
 - [x] Make `Off` one effective UI state.

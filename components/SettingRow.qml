@@ -28,6 +28,18 @@ Item {
   // says it the way a file row does: a dot for yours, a ring for the default.
   readonly property bool customised: srow.setting.can_revert_default === true
 
+  function floatText() {
+    return srow.isFloat && typeof srow.setting.value === "number" ? String(srow.setting.value) : ""
+  }
+  function validFloatText(text) {
+    var raw = String(text).trim()
+    if (!/^-?(?:\d+\.?\d*|\.\d+)$/.test(raw)) return false
+    var value = Number(raw)
+    return isFinite(value) && typeof srow.setting.min === "number"
+      && typeof srow.setting.max === "number"
+      && value >= srow.setting.min && value <= srow.setting.max
+  }
+
   // Whether the exact value is worth repeating under the label. It is there
   // because the stepper rounds — 150 seconds is edited as 3 minutes, and the
   // row must never leave you guessing which number is real — but on the rows
@@ -178,31 +190,52 @@ Item {
         }
       }
 
-      // Floats get a slider: a stepper over 0.5–2.0 in 0.05 steps would be
-      // thirty clicks from one end to the other. The step comes from the
-      // registry (display_step), so each float moves in its own useful
-      // increments (0.05 for dim, 0.01 for scrolling width).
+      // The slider moves quickly and the field accepts the exact decimal a
+      // person needs. The field sends the raw accepted number to the existing
+      // queue, so it does not add a second command path or step restriction.
       Row {
         visible: srow.isFloat
         anchors.right: parent.right
         anchors.verticalCenter: parent.verticalCenter
-        spacing: Style.space(6)
-        Text {
+        spacing: Style.space(4)
+        TextField {
+          id: floatField
+          objectName: "setting-float-input"
           anchors.verticalCenter: parent.verticalCenter
-          width: Style.space(30)
-          text: srow.isFloat && typeof srow.setting.value === "number" ? srow.setting.value.toFixed(2) : "—"
-          color: panel.fg; font.family: panel.mono; font.pixelSize: Style.font.caption
+          width: Style.space(48)
+          enabled: srow.usable
+          text: srow.floatText()
+          foreground: panel.fg; accent: Color.accent; font.family: panel.mono
+          inputMethodHints: Qt.ImhFormattedNumbersOnly
+          property string queuedValue: ""
+          function submit() {
+            var raw = text.trim()
+            if (!srow.usable || !srow.validFloatText(raw)) return
+            if (Number(raw) === Number(srow.setting.value) || queuedValue === raw) return
+            queuedValue = raw
+            panel.queueSetting(srow.setting.id, raw)
+          }
+          onAccepted: submit()
+          onActiveFocusChanged: if (!activeFocus) submit()
+          onTextChanged: if (text.trim() !== queuedValue) queuedValue = ""
+          Keys.onEscapePressed: {
+            text = srow.floatText()
+            queuedValue = ""
+            panel.releaseFocus()
+          }
+          ToolTip.visible: hovered && !enabled
+          ToolTip.text: srow.unavailableReason
         }
         PanelSlider {
           anchors.verticalCenter: parent.verticalCenter
-          width: Style.space(112)
+          width: Style.space(76)
           bar: panel.bar
           minimum: srow.isFloat && typeof srow.setting.min === "number" ? srow.setting.min : 0
           maximum: srow.isFloat && typeof srow.setting.max === "number" ? srow.setting.max : 1
           step: srow.isFloat && typeof srow.setting.display_step === "number" && srow.setting.display_step > 0 ? srow.setting.display_step : 0.05
           value: srow.isFloat && typeof srow.setting.value === "number" ? srow.setting.value : 0
           enabled: srow.usable
-          onReleased: function(v) { if (srow.usable) panel.queueSetting(srow.setting.id, Math.round(v * 100) / 100) }
+          onReleased: function(v) { if (srow.usable) panel.queueSetting(srow.setting.id, String(v)) }
         }
       }
 
