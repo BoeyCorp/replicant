@@ -103,10 +103,11 @@ SETTINGS=(
   "input.middleEmulation|Touchpad|$HOME/.config/hypr/input.lua|input:touchpad:middle_button_emulation|lua-bool|Middle-click emulation|||||Left and right together click as middle|hyprctl reload||1||"
   # ── Windows — ~/.config/hypr/looknfeel.lua. Official 0.56.2 limits:
   # border_size 0-20, rounding 0-100, dim_strength 0-1, opacities 0-1,
-  # column_width 0.1-1.0, gaps unbounded (0-100 practical), layout portable 4.
+  # column_width 0.1-1.0, gaps officially unbounded (min 0 as sanity guard),
+  # layout the four portable ones.
   "window.rounding|Windows|$HOME/.config/hypr/looknfeel.lua|decoration:rounding|lua-int|Corner radius|px|0|100||Round the corners of windows|hyprctl reload|0|1||"
-  "window.gapsIn|Windows|$HOME/.config/hypr/looknfeel.lua|general:gaps_in|lua-int|Inner gaps|px|0|100||Space between windows|hyprctl reload|5|1||"
-  "window.gapsOut|Windows|$HOME/.config/hypr/looknfeel.lua|general:gaps_out|lua-int|Outer gaps|px|0|100||Space between windows and screen edges|hyprctl reload|10|1||"
+  "window.gapsIn|Windows|$HOME/.config/hypr/looknfeel.lua|general:gaps_in|lua-int|Inner gaps|px|0|||Space between windows|hyprctl reload|5|1||"
+  "window.gapsOut|Windows|$HOME/.config/hypr/looknfeel.lua|general:gaps_out|lua-int|Outer gaps|px|0|||Space between windows and screen edges|hyprctl reload|10|1||"
   "window.borderSize|Windows|$HOME/.config/hypr/looknfeel.lua|general:border_size|lua-int|Border size|px|0|20||Thickness of window borders|hyprctl reload|1|1||"
   "window.resizeOnBorder|Windows|$HOME/.config/hypr/looknfeel.lua|general:resize_on_border|lua-bool|Drag borders to resize|||||Resize by dragging borders and gaps|hyprctl reload||1||"
   "window.layout|Windows|$HOME/.config/hypr/looknfeel.lua|general:layout|lua-enum|Window layout||||dwindle,master,scrolling,monocle|How new windows tile; scrolling is side to side|hyprctl reload|dwindle|1||"
@@ -828,6 +829,7 @@ set_setting_value() {
       apply=""
       ;;
     lua-int|lua-float|lua-bool|lua-enum)
+      local out_tmp out_n
       [[ -f "$file" ]] || { echo "file not found: $file" >&2; return 1; }
       if ! command -v hyprctl >/dev/null 2>&1; then
         echo "$1: Hyprland is not available — left $file untouched, nothing was applied" >&2

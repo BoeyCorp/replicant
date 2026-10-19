@@ -315,3 +315,16 @@ formato. Todo verificado contra main limpio antes de tocar.
   Settings revisada (8 grupos, 47 ajustes), prueba real de lectura en esta
   maquina (raton, touchpad, esquinas, gaps, blur, layout) y `hyprctl
   configerrors` limpio.
+
+Supuestos que el codigo honra (sin excepciones):
+- Los ajustes de raton son globales y portables entre maquinas: viven en el
+  bloque de `hypr/input.lua`, sin rutas por dispositivo.
+- Las reglas `hl.device` siguen siendo configuracion avanzada manual:
+  Replicant solo avisa cuando pisan un valor global, sin tocarlas ni
+  nombrar el hardware.
+- El grupo Touchpad permanece visible aunque no haya uno conectado, para
+  restaurar su configuracion en otra maquina (sin logica de ocultado).
+- Los bloques gestionados permanecen dentro de los archivos estandar de
+  Omarchy (`hypr/input.lua`, `hypr/looknfeel.lua`).
+- Replicant nunca modifica los defaults instalados ni crea
+  `hypr/replicant-settings.lua`: solo lee `/usr/share/omarchy`.

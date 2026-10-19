@@ -834,5 +834,12 @@ check "scope-off commits nothing" "$head_before" "$(git -C "$REPO_DIR" rev-parse
 sj=$(build_settings_json)
 check_contains "scope-off warns before the next change" "Applies locally only" "$(printf '%s' "$sj" | jq -r '[.[] | select(.id=="input.sensitivity")][0].notice')"
 core_scope_transact hypr/input.lua shared >/dev/null 2>&1
+# The CLI path, not just the sourced function: new ids and decimals through
+# `replicant set`, committed through the owning entry like any other setting.
+CLI="$HERE/../bin/replicant"
+"$CLI" set input.sensitivity 0.2 >/dev/null 2>&1; rc=$?
+check "CLI set accepts a decimal" "0" "$rc"
+check "CLI value lands live" "0.2" "$(get_setting_value input.sensitivity)"
+check "CLI value reaches the repo" "0.2" "$(setting_repo_value input.sensitivity)"
 
 summary
