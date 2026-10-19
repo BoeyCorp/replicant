@@ -285,46 +285,45 @@ Todo verificado contra main limpio antes de tocar (sin regresiones).
 - [x] G7 screenshots y validacion saltan en el contenedor CI sin Omarchy
   en vez de fallar. CI en verde en main.
 
-## Sesion 2026-10-19 - Settings Hyprland 0.39.0
+## Session 2026-10-19 - Hyprland Settings 0.39.0
 
-Origen: ampliar Settings de 24 a 47 ajustes sin otro almacen ni cambios de
-formato. Todo verificado contra main limpio antes de tocar.
+Origin: expand Settings from 24 to 47 settings with no extra store and no
+format changes. All verified against clean main before edits.
 
-- [x] Editor Lua por rutas completas (`input:scroll_factor` frente a
-  `input:touchpad:scroll_factor`): distingue hojas repetidas como
-  `scroll_factor` y `enabled`, ignora comentarios y no evalua codigo Lua.
-- [x] Bloque gestionado al final de `hypr/input.lua` y `hypr/looknfeel.lua`:
-  actualizacion determinista e idempotente, conserva todos los bytes fuera,
-  rechaza marcadores duplicados o danados sin modificar el archivo, crea
-  `.bak.<epoch>`, valida con `hyprctl reload` + `configerrors`, revierte ante
-  un error nuevo y rechaza sin afirmar aplicado si Hyprland no esta.
-- [x] Registro con 47 ajustes en Keyboard, Mouse & pointer, Touchpad y
-  Windows; siete identificadores existentes intactos; `accel_profile` solo
-  adaptive/flat; layouts dwindle, master, scrolling y monocle; limites
-  oficiales de Hyprland 0.56.2; dependencias dim/blur/scrolling con
-  `blocked_reason`; aviso de reglas `hl.device` sin nombres privados.
-- [x] Panel usa el paso numerico recibido y explica dependencias
-  desactivadas; `settings --json` anade `blocked_reason` sin quitar campos;
-  `set` acepta nuevos identificadores y decimales.
-- [x] Validacion completa: `./tests/run-all.sh` (1153 checks en verde; lo unico
-  en rojo son las 8 comparaciones de pixeles G7, que fallan identico en main
-  limpio en esta maquina: pila de renderizado ambiental, no regresion),
-  `test-settings.sh` 293/293, `test-settings-save.sh` 35/35, `qmllint`
-  limpio, `omarchy plugin validate .` limpio, `bench-status --check` dentro
-  de presupuesto (0.08s), capturas de revision renderizadas y pestaña
-  Settings revisada (8 grupos, 47 ajustes), prueba real de lectura en esta
-  maquina (raton, touchpad, esquinas, gaps, blur, layout) y `hyprctl
-  configerrors` limpio.
+- [x] Lua editor by full paths (`input:scroll_factor` versus
+  `input:touchpad:scroll_factor`): it distinguishes repeated leaves such as
+  `scroll_factor` and `enabled`, ignores comments and never evaluates Lua code.
+- [x] Managed block at the end of `hypr/input.lua` and `hypr/looknfeel.lua`:
+  deterministic and idempotent update, it preserves all outside bytes,
+  rejects duplicate or damaged markers without file change, creates
+  `.bak.<epoch>`, validates with `hyprctl reload` + `configerrors`, reverts on
+  a new error and rejects without claiming applied when Hyprland is absent.
+- [x] Registry with 47 settings in Keyboard, Mouse & pointer, Touchpad and
+  Windows; seven existing identifiers unchanged; `accel_profile` only
+  adaptive/flat; dwindle, master, scrolling and monocle layouts; official
+  Hyprland 0.56.2 limits; dim/blur/scrolling dependencies with
+  `blocked_reason`; `hl.device` rule warning without private names.
+- [x] Panel uses the received numeric step and explains disabled
+  dependencies; `settings --json` adds `blocked_reason` without removing
+  fields; `set` accepts new identifiers and decimals.
+- [x] Full validation: `./tests/run-all.sh` (1153 checks green; only red is
+  the 8 G7 pixel comparisons, which fail identically on clean main on this
+  machine: ambient render stack, no regression), `test-settings.sh` 293/293,
+  `test-settings-save.sh` 35/35, `qmllint` clean,
+  `omarchy plugin validate .` clean, `bench-status --check` within budget
+  (0.08s), rendered review captures and reviewed Settings tab (8 groups, 47
+  settings), real read test on this machine (mouse, touchpad, corners, gaps,
+  blur, layout) and `hyprctl configerrors` clean.
 
-Supuestos que el codigo honra (sin excepciones):
-- Los ajustes de raton son globales y portables entre maquinas: viven en el
-  bloque de `hypr/input.lua`, sin rutas por dispositivo.
-- Las reglas `hl.device` siguen siendo configuracion avanzada manual:
-  Replicant solo avisa cuando pisan un valor global, sin tocarlas ni
-  nombrar el hardware.
-- El grupo Touchpad permanece visible aunque no haya uno conectado, para
-  restaurar su configuracion en otra maquina (sin logica de ocultado).
-- Los bloques gestionados permanecen dentro de los archivos estandar de
-  Omarchy (`hypr/input.lua`, `hypr/looknfeel.lua`).
-- Replicant nunca modifica los defaults instalados ni crea
-  `hypr/replicant-settings.lua`: solo lee `/usr/share/omarchy`.
+Assumptions the code honors (no exceptions):
+- Mouse settings are global and portable across machines: they live in the
+  `hypr/input.lua` block, with no per-device paths.
+- `hl.device` rules remain manual advanced configuration: Replicant only
+  warns when they override a global value, without touching them or naming
+  hardware.
+- The Touchpad group stays visible even with no device connected, to restore
+  its configuration on another machine (no hide logic).
+- Managed blocks stay inside the standard Omarchy files
+  (`hypr/input.lua`, `hypr/looknfeel.lua`).
+- Replicant never modifies installed defaults and never creates
+  `hypr/replicant-settings.lua`: it only reads `/usr/share/omarchy`.
