@@ -796,12 +796,17 @@ set_setting_value input.repeatRate 70 >/dev/null 2>&1; rc=$?
 check "pre-existing errors do not roll back" "0" "$rc"
 check "value lands despite old errors" "70" "$(lua_file_value "$HOME/.config/hypr/input.lua" "input:repeat_rate")"
 unset HYPRCTL_CONFIGERRORS
-# Without Hyprland there is no applied to claim.
-if command -v hyprctl >/dev/null 2>&1 && [[ -x /usr/bin/hyprctl ]]; then
+# Without Hyprland there is no applied to claim: hide both test stubs so PATH
+# has no hyprctl, then restore. A real /usr/bin/hyprctl still skips here and
+# is covered in CI where no real Hyprland exists.
+saved_path="$PATH"
+stubless=$(printf '%s\n' "$PATH" | tr ':' '\n' | grep -v -x -e "$TMP/fakebin" -e "$STUB_DIR" | paste -sd: -)
+if PATH="$stubless" command -v hyprctl >/dev/null 2>&1; then
   check_true "hyprctl present here, missing-path covered in CI" true
 else
-  check_false "missing Hyprland rejects the change" set_setting_value input.repeatRate 71
+  PATH="$stubless" check_false "missing Hyprland rejects the change" set_setting_value input.repeatRate 71
 fi
+PATH="$saved_path"
 # Back to a good file.
 cat > "$HOME/.config/hypr/input.lua" <<'LUA'
 hl.config({
