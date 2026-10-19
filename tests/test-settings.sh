@@ -54,6 +54,15 @@ if [[ "$1" == getoption ]]; then
   awk -F'\t' -v o="$2" '$1 == o { print $2; found = 1 } END { exit !found }' "$HYPRCTL_OPTIONS"
   exit
 fi
+if [[ "$1" == reload ]]; then
+  [[ "${HYPRCTL_FAIL_RELOAD:-0}" == 1 ]] && { echo "reload failed" >&2; exit 1; }
+  exit 0
+fi
+if [[ "$1" == configerrors ]]; then
+  if [[ -n "${HYPRCTL_CONFIGERRORS:-}" && -f "$HYPRCTL_CONFIGERRORS" ]]; then cat "$HYPRCTL_CONFIGERRORS"; exit 0; fi
+  echo "no errors"
+  exit 0
+fi
 exit 0
 EOF
 chmod +x "$TMP/fakebin/hyprctl"
@@ -113,9 +122,11 @@ set_setting_value input.tapToClick false >/dev/null 2>&1
 check "Lua bool written"             "false"  "$(get_setting_value input.tapToClick)"
 set_setting_value input.kbLayout us >/dev/null 2>&1
 check "Lua string written"           "us"     "$(get_setting_value input.kbLayout)"
-check_contains "Lua value is re-quoted" 'kb_layout = "us"' "$(cat "$TMP/.config/hypr/input.lua")"
-check_contains "trailing comment survives" 'tap_to_click = false, -- trailing comment' "$(cat "$TMP/.config/hypr/input.lua")"
-check_contains "indentation preserved" '    repeat_rate = 55,' "$(cat "$TMP/.config/hypr/input.lua")"
+check_contains "Lua value is re-quoted in the managed block" 'kb_layout = "us"' "$(cat "$TMP/.config/hypr/input.lua")"
+check_contains "managed block is present" '-- replicant:settings:start' "$(cat "$TMP/.config/hypr/input.lua")"
+check_contains "managed value lands in the block" 'repeat_rate = 55' "$(cat "$TMP/.config/hypr/input.lua")"
+check_contains "trailing comment preserved outside the block" 'tap_to_click = true,  -- trailing comment' "$(cat "$TMP/.config/hypr/input.lua")"
+check_contains "block holds the new tap value" 'tap_to_click = false' "$(cat "$TMP/.config/hypr/input.lua")"
 check "commented-out line untouched" "1" "$(grep -c 'repeat_rate = 99' "$TMP/.config/hypr/input.lua")"
 
 set_setting_value default.editor nvim >/dev/null 2>&1
@@ -137,22 +148,32 @@ check "…float unchanged"             "1.25" "$(get_setting_value spacing.scale
 check_false "int type rejects a float"    set_setting_value font.baseSize 12.5
 check "…font size unchanged"         "16"   "$(get_setting_value font.baseSize)"
 
-section "refusing an ambiguous Lua key rather than guessing"
-# The same key in two tables must read as missing and refuse to be written:
-# a generic nested-table editor needs a real Lua parser to be safe, and these
-# files decide whether the graphical session starts at all.
+section "full routes distinguish shared leaves; only a repeated full route is ambiguous"
+# input:scroll_factor and input:touchpad:scroll_factor share a leaf but live
+# in different tables: both must read, and a device rule must not merge them.
 cat > "$TMP/.config/hypr/input.lua" <<'LUA'
 hl.config({
   input = {
-    repeat_rate = 40,
+    scroll_factor = 1.0,
     touchpad = {
-      repeat_rate = 10,
+      scroll_factor = 0.5,
     },
   },
 })
 LUA
-check_false "duplicate key reads as missing" get_setting_value input.repeatRate
-check_false "duplicate key refuses a write"  set_setting_value input.repeatRate 60
+check "mouse scroll_factor reads its own table" "1.0" "$(get_setting_value input.scrollFactor)"
+check "touchpad scroll_factor reads its own table" "0.5" "$(get_setting_value input.touchScrollFactor)"
+# The same full route twice is ambiguous and must read as missing/refuse.
+cat > "$TMP/.config/hypr/input.lua" <<'LUA'
+hl.config({
+  input = {
+    repeat_rate = 40,
+    repeat_rate = 10,
+  },
+})
+LUA
+check_false "duplicate full route reads as missing" get_setting_value input.repeatRate
+check_false "duplicate full route refuses a write"  set_setting_value input.repeatRate 60
 check "…both lines still present" "2" "$(grep -c 'repeat_rate' "$TMP/.config/hypr/input.lua")"
 check "…and neither value moved"  "1" "$(grep -c 'repeat_rate = 40' "$TMP/.config/hypr/input.lua")"
 
@@ -475,12 +496,12 @@ section "the registry itself is well-formed"
 bad_fields=0; dupe=0; seen=""
 for entry in "${SETTINGS[@]}"; do
   n=$(printf '%s' "$entry" | awk -F'|' '{print NF}')
-  [[ "$n" == 15 ]] || { bad_fields=$((bad_fields+1)); echo "    15 fields expected, got $n: $(setting_field "$entry" 1)"; }
+  [[ "$n" == 16 ]] || { bad_fields=$((bad_fields+1)); echo "    16 fields expected, got $n: $(setting_field "$entry" 1)"; }
   id=$(setting_field "$entry" 1)
   [[ ",$seen," == *",$id,"* ]] && dupe=$((dupe+1))
   seen="$seen,$id"
 done
-check "every line has 15 fields" "0" "$bad_fields"
+check "every line has 16 fields" "0" "$bad_fields"
 check "no duplicate setting ids" "0" "$dupe"
 # A dropdown that lists one option twice looks broken, and lid.closeDocked
 # offered `ignore` twice.
@@ -506,5 +527,312 @@ for entry in "${SETTINGS[@]}"; do
   h=$(setting_field "$entry" 11)
   check_true "hint fits: $id" test "${#h}" -le "$HINT_MAX"
 done
+
+section "47 settings in their new groups"
+check "47 settings total" "47" "${#SETTINGS[@]}"
+check "Keyboard holds repeat, delay, layout and numlock" "4" "$(printf '%s\n' "${SETTINGS[@]}" | grep -c '^[^|]*|Keyboard|')"
+check "Mouse & pointer holds five" "5" "$(printf '%s\n' "${SETTINGS[@]}" | grep -c '^[^|]*|Mouse & pointer|')"
+check "Touchpad holds seven" "7" "$(printf '%s\n' "${SETTINGS[@]}" | grep -c '^[^|]*|Touchpad|')"
+check "Windows holds fourteen" "14" "$(printf '%s\n' "${SETTINGS[@]}" | grep -c '^[^|]*|Windows|')"
+check "seven existing ids are kept" "7" "$(for k in input.repeatRate input.repeatDelay input.kbLayout input.numlock input.naturalScroll input.tapToClick input.disableWhileTyping; do find_setting "$k" >/dev/null 2>&1 && echo kept; done | wc -l)"
+check "no Input group remains" "0" "$(printf '%s\n' "${SETTINGS[@]}" | grep -c '|Input|')"
+for g in "Keyboard" "Mouse & pointer" "Touchpad" "Windows"; do
+  check_true "group declared: $g" grep -q "^$g|" < <(printf '%s\n' "${SETTING_GROUPS[@]}")
+done
+sj=$(build_settings_json)
+check "panel sees 47 rows on a laptop" "47" "$(printf '%s' "$sj" | jq 'length')"
+check "every row carries blocked_reason" "0" "$(printf '%s' "$sj" | jq '[.[] | select(has("blocked_reason") | not)] | length')"
+# No existing field was removed: id, group, label, type, value, available,
+# value_text, default_text, repo_text, can_revert_default, notice all stay.
+for f in id group label type value available value_text default_text repo_text can_revert_default notice; do
+  check "field kept: $f" "0" "$(printf '%s' "$sj" | jq --arg f "$f" '[.[] | select(has($f) | not)] | length')"
+done
+
+section "a clean install whose Lua files hold only commented examples"
+cat > "$HOME/.config/hypr/input.lua" <<'LUA'
+-- Keep only your personal input overrides here. Uncommented settings below
+-- replace Omarchy's defaults.
+-- hl.config({
+--   input = {
+--     repeat_rate = 40,
+--   },
+-- })
+LUA
+cat > "$HOME/.config/hypr/looknfeel.lua" <<'LUA'
+-- Change the default Omarchy look'n'feel.
+-- hl.config({
+--   decoration = {
+--     rounding = 8,
+--   },
+-- })
+LUA
+rm -f "$HYPRCTL_OPTIONS"
+# No Hyprland answer and no file value: mouse sensitivity falls back to the
+# registry default and reads as inherited, not as missing.
+sj=$(build_settings_json)
+check "clean mouse sensitivity inherits the registry fallback" "0" "$(printf '%s' "$sj" | jq -r '[.[] | select(.id=="input.sensitivity")][0].value')"
+check "…and says so" "true" "$(printf '%s' "$sj" | jq -r '[.[] | select(.id=="input.sensitivity")][0].implicit')"
+# With Hyprland answering, the effective value wins over the fallback.
+printf '%s\t%s\n' input:sensitivity '{"option":"input:sensitivity","float":0.25,"set":true}' > "$HYPRCTL_OPTIONS"
+sj=$(build_settings_json)
+check "Hyprland effective beats the fallback" "0.25" "$(printf '%s' "$sj" | jq -r '[.[] | select(.id=="input.sensitivity")][0].value')"
+rm -f "$HYPRCTL_OPTIONS"
+# First write inserts the managed block at the end, keeping the comments.
+set_setting_value input.sensitivity 0.2 >/dev/null 2>&1
+check "first write lands" "0.2" "$(get_setting_value input.sensitivity)"
+check_contains "block opens at the end" '-- replicant:settings:start' "$(cat "$HOME/.config/hypr/input.lua")"
+check_contains "commented example untouched" '--     repeat_rate = 40,' "$(cat "$HOME/.config/hypr/input.lua")"
+
+section "shared leaves stay apart: enabled and scroll_factor"
+cat > "$HOME/.config/hypr/input.lua" <<'LUA'
+hl.config({
+  input = {
+    scroll_factor = 1.0,
+    touchpad = {
+      scroll_factor = 0.5,
+    },
+  },
+})
+LUA
+cat > "$HOME/.config/hypr/looknfeel.lua" <<'LUA'
+hl.config({
+  animations = {
+    enabled = true,
+  },
+  decoration = {
+    blur = {
+      enabled = false,
+    },
+    shadow = {
+      enabled = true,
+    },
+  },
+})
+LUA
+check "input scroll_factor" "1.0" "$(get_setting_value input.scrollFactor)"
+check "touchpad scroll_factor" "0.5" "$(get_setting_value input.touchScrollFactor)"
+check "animations enabled" "true" "$(get_setting_value window.animations)"
+check "blur enabled" "false" "$(get_setting_value window.blur)"
+check "shadow enabled" "true" "$(get_setting_value window.shadows)"
+
+section "reading: inherited, managed, repo and Omarchy defaults"
+# Inherited: nothing written, Hyprland answers.
+cat > "$HOME/.config/hypr/input.lua" <<'LUA'
+hl.config({ input = { } })
+LUA
+printf '%s\t%s\n' input:left_handed '{"option":"input:left_handed","bool":false,"set":false}' > "$HYPRCTL_OPTIONS"
+sj=$(build_settings_json)
+check "inherited value is Hyprland's" "false" "$(printf '%s' "$sj" | jq -r '[.[] | select(.id=="input.leftHanded")][0].value')"
+check "…marked inherited" "true" "$(printf '%s' "$sj" | jq -r '[.[] | select(.id=="input.leftHanded")][0].implicit')"
+rm -f "$HYPRCTL_OPTIONS"
+# Managed: the block wins over manual content above it.
+cat > "$HOME/.config/hypr/input.lua" <<'LUA'
+hl.config({
+  input = {
+    repeat_rate = 40,
+  },
+})
+LUA
+set_setting_value input.repeatRate 55 >/dev/null 2>&1
+check "managed wins" "55" "$(get_setting_value input.repeatRate)"
+check "manual kept above" "1" "$(grep -c 'repeat_rate = 40' "$HOME/.config/hypr/input.lua")"
+# Repo: what the saved copy holds.
+mkdir -p "$CONFIG_DIR/hypr"
+cp "$HOME/.config/hypr/input.lua" "$CONFIG_DIR/hypr/input.lua"
+check "repo value reads the saved copy" "55" "$(setting_repo_value input.repeatRate)"
+# Omarchy default: the installed looknfeel ships border 2 (wiki says 1).
+export OMARCHY_PATH="$TMP/omarchy-defaults"
+mkdir -p "$OMARCHY_PATH/config/hypr" "$OMARCHY_PATH/default/hypr"
+printf -- '-- shipped commented file, no values\n' > "$OMARCHY_PATH/config/hypr/looknfeel.lua"
+cat > "$OMARCHY_PATH/default/hypr/looknfeel.lua" <<'LUA'
+hl.config({
+  general = {
+    border_size = 2,
+  },
+})
+LUA
+check "Omarchy default wins over the wiki fallback" "2" "$(setting_default_value window.borderSize)"
+export OMARCHY_PATH="$TMP/omarchy"
+rm -rf "$TMP/omarchy-defaults"
+
+section "managed block: insert, repeat, damaged markers, manual bytes"
+cat > "$HOME/.config/hypr/input.lua" <<'LUA'
+-- manual header survives every write
+hl.config({
+  input = {
+    repeat_rate = 40,
+  },
+})
+LUA
+set_setting_value input.repeatRate 55 >/dev/null 2>&1
+check "insert writes the block" "55" "$(lua_file_value "$HOME/.config/hypr/input.lua" "input:repeat_rate")"
+cp "$HOME/.config/hypr/input.lua" /tmp/replicant-block-once.lua
+set_setting_value input.repeatRate 55 >/dev/null 2>&1
+check_true "repeat update is idempotent" cmp -s /tmp/replicant-block-once.lua "$HOME/.config/hypr/input.lua"
+set_setting_value input.sensitivity 0.2 >/dev/null 2>&1
+check "second key joins the same block" "0.2" "$(lua_file_value "$HOME/.config/hypr/input.lua" "input:sensitivity")"
+check "first key still there" "55" "$(lua_file_value "$HOME/.config/hypr/input.lua" "input:repeat_rate")"
+check "manual header kept" "1" "$(grep -c 'manual header survives' "$HOME/.config/hypr/input.lua")"
+check "one start marker" "1" "$(grep -cF -- '-- replicant:settings:start' "$HOME/.config/hypr/input.lua")"
+check "one end marker" "1" "$(grep -cF -- '-- replicant:settings:end' "$HOME/.config/hypr/input.lua")"
+printf '%s\n' '-- replicant:settings:start' >> "$HOME/.config/hypr/input.lua"
+cp "$HOME/.config/hypr/input.lua" /tmp/replicant-block-dup.lua
+check_false "duplicated markers refuse a write" set_setting_value input.repeatRate 60
+check_true "duplicated markers leave the file alone" cmp -s /tmp/replicant-block-dup.lua "$HOME/.config/hypr/input.lua"
+printf 'hl.config({ input = { repeat_rate = 40 } })\n-- replicant:settings:start\nbroken\n' > "$HOME/.config/hypr/input.lua"
+check_false "damaged markers refuse a write" set_setting_value input.repeatRate 60
+# Restore a good file for the sections below.
+cat > "$HOME/.config/hypr/input.lua" <<'LUA'
+hl.config({
+  input = {
+    repeat_rate = 40,
+  },
+})
+LUA
+cat > "$HOME/.config/hypr/looknfeel.lua" <<'LUA'
+hl.config({
+  decoration = {
+    rounding = 5,
+  },
+})
+LUA
+
+section "types, limits and steps"
+check_false "int rejects decimals" set_setting_value window.rounding 5.5
+check_false "int below minimum rejected" set_setting_value window.rounding -1
+check_false "int above maximum rejected" set_setting_value window.rounding 101
+check_false "float rejects words" set_setting_value input.sensitivity wide
+check_false "float below minimum rejected" set_setting_value input.sensitivity -1.5
+check_false "float above maximum rejected" set_setting_value input.sensitivity 1.5
+check_false "bool rejects words" set_setting_value window.blur maybe
+check_false "enum rejects unknown" set_setting_value window.layout sideways
+check_false "accel_profile custom needs manual config" set_setting_value input.accelProfile custom
+set_setting_value input.sensitivity -0.5 >/dev/null 2>&1
+check "decimals land" "-0.5" "$(get_setting_value input.sensitivity)"
+sj=$(build_settings_json)
+check "sensitivity steps in 0.05" "0.05" "$(printf '%s' "$sj" | jq -r '[.[] | select(.id=="input.sensitivity")][0].display_step')"
+check "column width steps in 0.01" "0.01" "$(printf '%s' "$sj" | jq -r '[.[] | select(.id=="window.columnWidth")][0].display_step')"
+check "accel offers adaptive and flat only" "adaptive,flat" "$(printf '%s' "$sj" | jq -r '[.[] | select(.id=="input.accelProfile")][0].options | join(",")')"
+check "layout offers four portable layouts" "dwindle,master,scrolling,monocle" "$(printf '%s' "$sj" | jq -r '[.[] | select(.id=="window.layout")][0].options | join(",")')"
+
+section "dependencies disable their dependents"
+set_setting_value window.dimInactive false >/dev/null 2>&1
+sj=$(build_settings_json)
+check "dim strength blocked without dim" "Turn on Dim inactive windows to use dim strength." "$(printf '%s' "$sj" | jq -r '[.[] | select(.id=="window.dimStrength")][0].blocked_reason')"
+set_setting_value window.dimInactive true >/dev/null 2>&1
+sj=$(build_settings_json)
+check "dim strength frees with dim" "" "$(printf '%s' "$sj" | jq -r '[.[] | select(.id=="window.dimStrength")][0].blocked_reason')"
+set_setting_value window.blur false >/dev/null 2>&1
+sj=$(build_settings_json)
+check "blur special blocked without blur" "Turn on Blur to use the special workspace blur." "$(printf '%s' "$sj" | jq -r '[.[] | select(.id=="window.blurSpecial")][0].blocked_reason')"
+set_setting_value window.blur true >/dev/null 2>&1
+set_setting_value window.layout dwindle >/dev/null 2>&1
+sj=$(build_settings_json)
+check "column width blocked without scrolling" "Switch Window layout to scrolling to use column width." "$(printf '%s' "$sj" | jq -r '[.[] | select(.id=="window.columnWidth")][0].blocked_reason')"
+set_setting_value window.layout scrolling >/dev/null 2>&1
+sj=$(build_settings_json)
+check "column width frees on scrolling" "" "$(printf '%s' "$sj" | jq -r '[.[] | select(.id=="window.columnWidth")][0].blocked_reason')"
+
+section "device rules warn without naming hardware"
+cat > "$HOME/.config/hypr/input.lua" <<'LUA'
+hl.config({
+  input = {
+    sensitivity = 0.2,
+  },
+})
+hl.device({ name = "secret-mouse-1", sensitivity = -0.5 })
+LUA
+sj=$(build_settings_json)
+check_contains "device override warns" "per-device rule" "$(printf '%s' "$sj" | jq -r '[.[] | select(.id=="input.sensitivity")][0].notice')"
+check "device name stays private" "0" "$(printf '%s' "$sj" | jq -r '[.[] | select(.id=="input.sensitivity")][0].notice' | grep -c 'secret-mouse-1' || true)"
+cat > "$HOME/.config/hypr/input.lua" <<'LUA'
+hl.config({
+  input = {
+    sensitivity = 0.2,
+  },
+})
+LUA
+
+section "reload and configerrors: rollback, no commit, no false applied"
+cat > "$HOME/.config/hypr/input.lua" <<'LUA'
+hl.config({
+  input = {
+    repeat_rate = 40,
+  },
+})
+LUA
+head_before=$(git -C "$REPO_DIR" rev-parse HEAD 2>/dev/null || echo none)
+HYPRCTL_FAIL_RELOAD=1 set_setting_value input.repeatRate 70 >/dev/null 2>&1; rc=$?
+check "reload failure reports failure" "1" "$rc"
+check "reload failure restores the file" "40" "$(lua_file_value "$HOME/.config/hypr/input.lua" "input:repeat_rate")"
+check "reload failure commits nothing" "$head_before" "$(git -C "$REPO_DIR" rev-parse HEAD 2>/dev/null || echo none)"
+unset HYPRCTL_FAIL_RELOAD
+# Simulate a NEW error: configerrors is clean before the write (file holds
+# 40) and reports an error after (file holds 70). A static file cannot do
+# that, so swap in a stub that answers from the live file, then restore it.
+cp "$TMP/fakebin/hyprctl" /tmp/replicant-hyprctl-stub.bak
+cat > "$TMP/fakebin/hyprctl" <<'EOF'
+#!/bin/bash
+if [[ "$1" == reload ]]; then exit 0; fi
+if [[ "$1" == getoption ]]; then printf '{"option":"x","int":40,"set":true}'; exit 0; fi
+if [[ "$1" == configerrors ]]; then
+  if grep -q "repeat_rate = 70" "$HOME/.config/hypr/input.lua" 2>/dev/null; then echo "error: invalid repeat_rate"; else echo "no errors"; fi
+  exit 0
+fi
+exit 0
+EOF
+chmod +x "$TMP/fakebin/hyprctl"
+head_before=$(git -C "$REPO_DIR" rev-parse HEAD 2>/dev/null || echo none)
+set_setting_value input.repeatRate 70 >/dev/null 2>&1; rc=$?
+check "new config error reports failure" "1" "$rc"
+check "new config error restores the file" "40" "$(lua_file_value "$HOME/.config/hypr/input.lua" "input:repeat_rate")"
+check "new config error commits nothing" "$head_before" "$(git -C "$REPO_DIR" rev-parse HEAD 2>/dev/null || echo none)"
+cp /tmp/replicant-hyprctl-stub.bak "$TMP/fakebin/hyprctl"
+chmod +x "$TMP/fakebin/hyprctl"
+# Same errors as before are not new: the write stands.
+printf 'error: old\n' > "$TMP/configerrors-old"
+export HYPRCTL_CONFIGERRORS="$TMP/configerrors-old"
+set_setting_value input.repeatRate 70 >/dev/null 2>&1; rc=$?
+check "pre-existing errors do not roll back" "0" "$rc"
+check "value lands despite old errors" "70" "$(lua_file_value "$HOME/.config/hypr/input.lua" "input:repeat_rate")"
+unset HYPRCTL_CONFIGERRORS
+# Without Hyprland there is no applied to claim.
+if command -v hyprctl >/dev/null 2>&1 && [[ -x /usr/bin/hyprctl ]]; then
+  check_true "hyprctl present here, missing-path covered in CI" true
+else
+  check_false "missing Hyprland rejects the change" set_setting_value input.repeatRate 71
+fi
+# Back to a good file.
+cat > "$HOME/.config/hypr/input.lua" <<'LUA'
+hl.config({
+  input = {
+    repeat_rate = 40,
+  },
+})
+LUA
+
+section "new settings follow shared, profile and off"
+core_scope_transact hypr/looknfeel.lua profile >/dev/null 2>&1
+check "profile scope sticks for a window file" "profile" "$(scope_for hypr/looknfeel.lua)"
+# Earlier sections leave direct worktree writes behind (the two-ways-back
+# check edits the repo copy by hand); a selective save needs a clean tree,
+# so drop what was already verified before saving through it.
+git -C "$REPO_DIR" checkout -- . >/dev/null 2>&1 || true
+set_setting_value window.rounding 8 >/dev/null 2>&1; rc=$?
+check "profile write applies" "0" "$rc"
+core_save --id hypr/looknfeel.lua -m "test profile window" >/dev/null 2>&1; rc=$?
+check "profile save commits" "0" "$rc"
+profile_copy=$(repo_copy_for_rel hypr/looknfeel.lua)
+check "profile copy carries the window value" "8" "$(lua_file_value "$profile_copy" "decoration:rounding" 2>/dev/null || read_setting_from "$(find_setting window.rounding)" "$profile_copy")"
+core_scope_transact hypr/looknfeel.lua shared >/dev/null 2>&1
+core_scope_transact hypr/input.lua off >/dev/null 2>&1
+check "off sticks too" "off" "$(scope_for hypr/input.lua)"
+head_before=$(git -C "$REPO_DIR" rev-parse HEAD)
+set_setting_value input.sensitivity 0.3 >/dev/null 2>&1; rc=$?
+check "scope-off write still applies locally" "0" "$rc"
+check "scope-off commits nothing" "$head_before" "$(git -C "$REPO_DIR" rev-parse HEAD)"
+sj=$(build_settings_json)
+check_contains "scope-off warns before the next change" "Applies locally only" "$(printf '%s' "$sj" | jq -r '[.[] | select(.id=="input.sensitivity")][0].notice')"
+core_scope_transact hypr/input.lua shared >/dev/null 2>&1
 
 summary

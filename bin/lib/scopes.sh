@@ -411,6 +411,7 @@ scope_store() {
     source=override
   fi
   entries_upsert "$rel" "$src" "$kind" "$want" "$source" || return 1
+  invalidate_scopes_cache
   return 0
 }
 

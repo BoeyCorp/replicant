@@ -201,7 +201,10 @@ A plugin with a settings file of its own, `~/.config/omarchy/<name>.json`, also 
   machine's work.
 - **It says whether a save reached GitHub.** If another machine pushed first, the save says so and
   tells you to pull.
-- **24 settings from the panel**, in units that people use: the lock screen is *10 min*, not *600*.
+- **47 settings from the panel**, in units that people use: the lock screen is *10 min*, not *600*.
+  Keyboard, mouse, touchpad and windows live in their own groups: repeat rate
+  and layout, pointer sensitivity and acceleration, tap-to-click and scroll
+  speed, corners, gaps, borders, layout, dim, blur, shadows and scrolling width.
 - **Lid and sleep** on laptops: what closing the lid does on battery, on AC, and when docked.
 - **Two ways back for every value**: one button to Omarchy's default, one to what your repo has.
 - **Secrets stay secret.** SSH keys and `.env` files are stored at mode 600. The panel shows a kind,
@@ -230,6 +233,8 @@ Panel, **Restore**, *Preview* shows what would change, and touches nothing.
 
 - **Settings**: panel, **Settings**. A change is written to the real config file, applied, and
   committed. The CLI does the same with `replicant set <id> <value>`, in the stored unit.
+  Hyprland values live in a managed block at the end of `hypr/input.lua` and
+  `hypr/looknfeel.lua`; everything outside it is left byte-for-byte alone.
 - **Scopes and profiles**: open a row in **Configs** and pick **Shared**, your profile, or **Off**.
   The row shows the change at once. Off publishes that policy once, then future saves skip the file.
   Git keeps the last saved copy. In a terminal: `scope` and `profile`.

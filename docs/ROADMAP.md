@@ -18,3 +18,11 @@
 ## Next
 
 - Improve restore evidence without expanding the public repository format or scope CLI.
+
+## Settings expansion (0.39.0)
+
+- Settings grow from 24 to 47: Keyboard, Mouse & pointer, Touchpad and Windows
+  join the existing groups, with the seven existing identifiers unchanged.
+- Hyprland values live in a managed block at the end of `hypr/input.lua` and
+  `hypr/looknfeel.lua`. Writes validate with `hyprctl reload` and
+  `configerrors`, roll back on any new error, and save only the owning file.

@@ -9,23 +9,28 @@
 # mechanically. The panel renders a control per type, so adding a setting is one
 # line here and no QML change.
 #
-# Format: "id|group|file|path|type|label|unit|min|max|options|hint|apply|fallback|scale|display"
+# Format: "id|group|file|path|type|label|unit|min|max|options|hint|apply|fallback|scale|display|step"
 #
 #   group    the section the panel files this control under
 #   file     the file holding the value ("-" for types that don't read a file)
 #   path     jq path (".idle.lock") for JSON | "section.key" for TOML |
-#            the Hyprland option ("input:repeat_rate") for lua-*, whose last
-#            segment is the Lua key and whose whole name is what Hyprland is
-#            asked for the value in force | "-" for theme
+#            the Hyprland option ("input:touchpad:natural_scroll") for lua-*,
+#            whose full colon route is the Lua nesting and whose leaf is the
+#            Lua key. Two routes may share a leaf (input:scroll_factor and
+#            input:touchpad:scroll_factor); the reader tracks the full route,
+#            never the leaf alone.
 #   type     number | bool | enum            JSON, via jq
 #            toml-int | toml-float           "key = <n>" inside a [section]
-#            lua-int | lua-bool | lua-enum   a "key = value" line in a Hyprland
-#                                            Lua config (see lua_get for limits)
+#            lua-int | lua-float | lua-bool | lua-enum
+#                                            a "key = value" line in a Hyprland
+#                                            Lua file, read by full route inside
+#                                            hl.config blocks (see lua_get)
 #            theme                           the active Omarchy theme
 #            line-enum                       a file holding one bare word
-#   min/max  numeric types only, in the STORED unit
+#   min/max  numeric types only, in the STORED unit. Empty means no bound,
+#            which is what the official Hyprland limits say for gaps.
 #   options  enum types only, comma-separated
-#   hint     one short line shown under the control
+#   hint     one short line shown under the control (80 chars max, see tests)
 #   apply    command run after a successful write. Empty means the value is
 #            picked up live: the Omarchy shell watches both shell.json and
 #            ~/.config/omarchy/shell.toml (FileView watchChanges), so those
@@ -38,7 +43,8 @@
 #            never touch. Reported with implicit:true so the panel can say the
 #            value is inherited rather than written down anywhere. It doubles as
 #            the value "reset to the Omarchy default" writes when the file
-#            Omarchy ships has nothing to read.
+#            Omarchy ships has nothing to read. For lua-* the Hyprland value in
+#            force is used as a further fallback (see build_settings_json).
 #   scale    stored-unit -> shown-unit divisor. Omarchy stores idle timers in
 #            seconds; nobody thinks in "600 seconds", so the panel edits them in
 #            minutes (scale 60) and multiplies back before writing. Empty or 1
@@ -47,6 +53,10 @@
 #            have to know what the panel happens to display.
 #   display  the unit shown next to the control once `scale` is applied
 #            ("min"). Empty falls back to `unit`.
+#   step     the numeric step the panel offers. Empty means the historic rule
+#            (5 for long minute ranges, 50 for ms, 1 otherwise; 0.05 for
+#            floats is decided in QML from display_step). Set it for every
+#            lua-float so the slider moves in useful increments.
 #
 # A setting whose file or key is missing on this machine reads as null and the
 # panel greys the control out. That is the intended behaviour, not an error:
@@ -54,51 +64,86 @@
 SETTINGS=(
   # ── Idle & power — ~/.config/omarchy/shell.json, watched live by the shell.
   # Stored in seconds by Omarchy, edited in minutes here.
-  "idle.screensaver|Idle & power|$HOME/.config/omarchy/shell.json|.idle.screensaver|number|Screensaver|s|60|3600||Idle time before the screensaver starts|||60|min"
-  "idle.lock|Idle & power|$HOME/.config/omarchy/shell.json|.idle.lock|number|Lock screen|s|60|7200||Idle time before the screen locks|||60|min"
-  "idle.lazyDpms|Idle & power|$HOME/.config/omarchy/shell.json|.idle.lazyDpms|number|Turn off display|s|60|7200||Idle time before the display powers down|||60|min"
-  "idle.lazySuspendAc|Idle & power|$HOME/.config/omarchy/shell.json|.idle.lazySuspendAc|number|Suspend on AC|s|0|14400||Idle time before suspending on AC power (0 = never)|||60|min"
-  "idle.lazySuspendBatt|Idle & power|$HOME/.config/omarchy/shell.json|.idle.lazySuspendBatt|number|Suspend on battery|s|0|14400||Idle time before suspending on battery (0 = never)|||60|min"
+  "idle.screensaver|Idle & power|$HOME/.config/omarchy/shell.json|.idle.screensaver|number|Screensaver|s|60|3600||Idle time before the screensaver starts|||60|min|"
+  "idle.lock|Idle & power|$HOME/.config/omarchy/shell.json|.idle.lock|number|Lock screen|s|60|7200||Idle time before the screen locks|||60|min|"
+  "idle.lazyDpms|Idle & power|$HOME/.config/omarchy/shell.json|.idle.lazyDpms|number|Turn off display|s|60|7200||Idle time before the display powers down|||60|min|"
+  "idle.lazySuspendAc|Idle & power|$HOME/.config/omarchy/shell.json|.idle.lazySuspendAc|number|Suspend on AC|s|0|14400||Idle time before suspending on AC power (0 = never)|||60|min|"
+  "idle.lazySuspendBatt|Idle & power|$HOME/.config/omarchy/shell.json|.idle.lazySuspendBatt|number|Suspend on battery|s|0|14400||Idle time before suspending on battery (0 = never)|||60|min|"
   # ── Appearance
-  "theme.current|Appearance|-|-|theme|Theme|||||The theme applied to the shell, terminals and editor||tokyo-night|1|"
-  "bar.position|Appearance|$HOME/.config/omarchy/shell.json|.bar.position|enum|Bar position||||top,bottom,left,right|Which screen edge the status bar sits on|||1|"
-  "bar.transparent|Appearance|$HOME/.config/omarchy/shell.json|.bar.transparent|bool|Transparent bar|||||Let the wallpaper show through the bar|||1|"
-  "font.baseSize|Appearance|$HOME/.config/omarchy/shell.toml|font.base-size|toml-int|Interface font size|pt|8|32||Base size every bar, menu and panel font derives from||12|1|"
-  "spacing.scale|Appearance|$HOME/.config/omarchy/shell.toml|spacing.scale|toml-float|Interface density|×|0.5|2||Multiplies every margin, gap and control size||1.0|1|"
-  "bar.sizeHorizontal|Appearance|$HOME/.config/omarchy/shell.toml|bar.size-horizontal|toml-int|Bar thickness (top/bottom)|px|16|80||Bar height on a horizontal edge; setting it stops the font scaling it||26|1|"
-  "bar.sizeVertical|Appearance|$HOME/.config/omarchy/shell.toml|bar.size-vertical|toml-int|Bar thickness (left/right)|px|16|120||Bar width on a vertical edge; setting it stops the font scaling it||28|1|"
-  "bar.iconFont|Appearance|$HOME/.config/omarchy/shell.toml|bar.icon-font|toml-int|Bar icon size|px|8|28||How large the glyphs in the bar are drawn||13|1|"
-  # ── Input — Hyprland reads Lua at startup, so these need an explicit reload
-  "input.repeatRate|Input|$HOME/.config/hypr/input.lua|input:repeat_rate|lua-int|Key repeat rate|/s|1|100||Characters a held key sends per second|hyprctl reload||1|"
-  "input.repeatDelay|Input|$HOME/.config/hypr/input.lua|input:repeat_delay|lua-int|Key repeat delay|ms|100|2000||How long a key is held before it starts repeating|hyprctl reload||1|"
-  "input.kbLayout|Input|$HOME/.config/hypr/input.lua|input:kb_layout|lua-enum|Keyboard layout||||@x11-layouts|X11 layout code for the keyboard|hyprctl reload||1|"
-  "input.numlock|Input|$HOME/.config/hypr/input.lua|input:numlock_by_default|lua-bool|Num lock at login|||||Turn the numeric keypad on when the session starts|hyprctl reload||1|"
-  "input.naturalScroll|Input|$HOME/.config/hypr/input.lua|input:touchpad:natural_scroll|lua-bool|Natural scrolling|||||Touchpad: two fingers down moves the page up|hyprctl reload||1|"
-  "input.tapToClick|Input|$HOME/.config/hypr/input.lua|input:touchpad:tap_to_click|lua-bool|Tap to click|||||Touchpad: a tap counts as a click|hyprctl reload||1|"
-  "input.disableWhileTyping|Input|$HOME/.config/hypr/input.lua|input:touchpad:disable_while_typing|lua-bool|Ignore touchpad while typing|||||Stops the cursor jumping mid-sentence|hyprctl reload||1|"
+  "theme.current|Appearance|-|-|theme|Theme|||||The theme applied to the shell, terminals and editor||tokyo-night|1||"
+  "bar.position|Appearance|$HOME/.config/omarchy/shell.json|.bar.position|enum|Bar position||||top,bottom,left,right|Which screen edge the status bar sits on|||1||"
+  "bar.transparent|Appearance|$HOME/.config/omarchy/shell.json|.bar.transparent|bool|Transparent bar|||||Let the wallpaper show through the bar|||1||"
+  "font.baseSize|Appearance|$HOME/.config/omarchy/shell.toml|font.base-size|toml-int|Interface font size|pt|8|32||Base size every bar, menu and panel font derives from||12|1||"
+  "spacing.scale|Appearance|$HOME/.config/omarchy/shell.toml|spacing.scale|toml-float|Interface density|×|0.5|2||Multiplies every margin, gap and control size||1.0|1||0.05"
+  "bar.sizeHorizontal|Appearance|$HOME/.config/omarchy/shell.toml|bar.size-horizontal|toml-int|Bar thickness (top/bottom)|px|16|80||Bar height on a horizontal edge; setting it stops the font scaling it||26|1||"
+  "bar.sizeVertical|Appearance|$HOME/.config/omarchy/shell.toml|bar.size-vertical|toml-int|Bar thickness (left/right)|px|16|120||Bar width on a vertical edge; setting it stops the font scaling it||28|1||"
+  "bar.iconFont|Appearance|$HOME/.config/omarchy/shell.toml|bar.icon-font|toml-int|Bar icon size|px|8|28||How large the glyphs in the bar are drawn||13|1||"
+  # ── Keyboard — Hyprland reads Lua at startup, so these need an explicit reload.
+  # Official Hyprland 0.56.2 limits: repeat_rate 0-200, repeat_delay 0-2000.
+  "input.repeatRate|Keyboard|$HOME/.config/hypr/input.lua|input:repeat_rate|lua-int|Key repeat rate|/s|0|200||Characters a held key sends per second|hyprctl reload||1||"
+  "input.repeatDelay|Keyboard|$HOME/.config/hypr/input.lua|input:repeat_delay|lua-int|Key repeat delay|ms|0|2000||How long a key is held before it starts repeating|hyprctl reload||1||"
+  "input.kbLayout|Keyboard|$HOME/.config/hypr/input.lua|input:kb_layout|lua-enum|Keyboard layout||||@x11-layouts|X11 layout code for the keyboard|hyprctl reload||1||"
+  "input.numlock|Keyboard|$HOME/.config/hypr/input.lua|input:numlock_by_default|lua-bool|Num lock at login|||||Turn the numeric keypad on when the session starts|hyprctl reload||1||"
+  # ── Mouse & pointer — global, portable between machines.
+  # sensitivity -1.0-1.0, scroll_factor 0-100, accel_profile adaptive/flat
+  # (custom needs manual config and is not offered).
+  "input.sensitivity|Mouse & pointer|$HOME/.config/hypr/input.lua|input:sensitivity|lua-float|Pointer sensitivity||-1|1||Mouse speed; negative slows, positive speeds up|hyprctl reload|0|1||0.05"
+  "input.accelProfile|Mouse & pointer|$HOME/.config/hypr/input.lua|input:accel_profile|lua-enum|Acceleration profile||||adaptive,flat|How the pointer accelerates; flat is constant|hyprctl reload|adaptive|1||"
+  "input.naturalScrollMouse|Mouse & pointer|$HOME/.config/hypr/input.lua|input:natural_scroll|lua-bool|Natural scrolling (mouse)|||||Mouse: move content with the wheel, not the bar|hyprctl reload||1||"
+  "input.scrollFactor|Mouse & pointer|$HOME/.config/hypr/input.lua|input:scroll_factor|lua-float|Wheel scroll speed||0|100||Multiplier for the mouse wheel movement|hyprctl reload|1.0|1||0.1"
+  "input.leftHanded|Mouse & pointer|$HOME/.config/hypr/input.lua|input:left_handed|lua-bool|Left-handed mouse|||||Swap left and right mouse buttons|hyprctl reload||1||"
+  # ── Touchpad — visible even with none connected, so the config restores elsewhere.
+  # touchpad scroll_factor 0-100, the rest are bools.
+  "input.naturalScroll|Touchpad|$HOME/.config/hypr/input.lua|input:touchpad:natural_scroll|lua-bool|Natural scrolling|||||Touchpad: two fingers down moves the page up|hyprctl reload||1||"
+  "input.tapToClick|Touchpad|$HOME/.config/hypr/input.lua|input:touchpad:tap_to_click|lua-bool|Tap to click|||||Touchpad: a tap counts as a click|hyprctl reload||1||"
+  "input.disableWhileTyping|Touchpad|$HOME/.config/hypr/input.lua|input:touchpad:disable_while_typing|lua-bool|Ignore touchpad while typing|||||Stops the cursor jumping mid-sentence|hyprctl reload||1||"
+  "input.touchScrollFactor|Touchpad|$HOME/.config/hypr/input.lua|input:touchpad:scroll_factor|lua-float|Touchpad scroll speed||0|100||Multiplier for two-finger scrolling|hyprctl reload|1.0|1||0.05"
+  "input.clickFinger|Touchpad|$HOME/.config/hypr/input.lua|input:touchpad:clickfinger_behavior|lua-bool|Multi-finger click|||||One, two, three fingers mean left, right, middle|hyprctl reload||1||"
+  "input.tapAndDrag|Touchpad|$HOME/.config/hypr/input.lua|input:touchpad:tap_and_drag|lua-bool|Tap and drag|||||Tap, then drag without pressing down|hyprctl reload||1||"
+  "input.middleEmulation|Touchpad|$HOME/.config/hypr/input.lua|input:touchpad:middle_button_emulation|lua-bool|Middle-click emulation|||||Left and right together click as middle|hyprctl reload||1||"
+  # ── Windows — ~/.config/hypr/looknfeel.lua. Official 0.56.2 limits:
+  # border_size 0-20, rounding 0-100, dim_strength 0-1, opacities 0-1,
+  # column_width 0.1-1.0, gaps unbounded (0-100 practical), layout portable 4.
+  "window.rounding|Windows|$HOME/.config/hypr/looknfeel.lua|decoration:rounding|lua-int|Corner radius|px|0|100||Round the corners of windows|hyprctl reload|0|1||"
+  "window.gapsIn|Windows|$HOME/.config/hypr/looknfeel.lua|general:gaps_in|lua-int|Inner gaps|px|0|100||Space between windows|hyprctl reload|5|1||"
+  "window.gapsOut|Windows|$HOME/.config/hypr/looknfeel.lua|general:gaps_out|lua-int|Outer gaps|px|0|100||Space between windows and screen edges|hyprctl reload|10|1||"
+  "window.borderSize|Windows|$HOME/.config/hypr/looknfeel.lua|general:border_size|lua-int|Border size|px|0|20||Thickness of window borders|hyprctl reload|1|1||"
+  "window.resizeOnBorder|Windows|$HOME/.config/hypr/looknfeel.lua|general:resize_on_border|lua-bool|Drag borders to resize|||||Resize by dragging borders and gaps|hyprctl reload||1||"
+  "window.layout|Windows|$HOME/.config/hypr/looknfeel.lua|general:layout|lua-enum|Window layout||||dwindle,master,scrolling,monocle|How new windows tile; scrolling is side to side|hyprctl reload|dwindle|1||"
+  "window.animations|Windows|$HOME/.config/hypr/looknfeel.lua|animations:enabled|lua-bool|Animations|||||Animate windows, workspaces and layers|hyprctl reload||1||"
+  "window.dimInactive|Windows|$HOME/.config/hypr/looknfeel.lua|decoration:dim_inactive|lua-bool|Dim inactive windows|||||Darken windows that lack focus|hyprctl reload||1||"
+  "window.dimStrength|Windows|$HOME/.config/hypr/looknfeel.lua|decoration:dim_strength|lua-float|Dim strength||0|1||How much inactive windows dim|hyprctl reload|0.5|1||0.05"
+  "window.inactiveOpacity|Windows|$HOME/.config/hypr/looknfeel.lua|decoration:inactive_opacity|lua-float|Inactive opacity||0|1||Transparency of windows without focus|hyprctl reload|1.0|1||0.05"
+  "window.blur|Windows|$HOME/.config/hypr/looknfeel.lua|decoration:blur:enabled|lua-bool|Blur|||||Blur the wallpaper behind windows|hyprctl reload||1||"
+  "window.blurSpecial|Windows|$HOME/.config/hypr/looknfeel.lua|decoration:blur:special|lua-bool|Blur special workspace|||||Blur behind the scratchpad workspace|hyprctl reload||1||"
+  "window.shadows|Windows|$HOME/.config/hypr/looknfeel.lua|decoration:shadow:enabled|lua-bool|Window shadows|||||Draw drop shadows under windows|hyprctl reload||1||"
+  "window.columnWidth|Windows|$HOME/.config/hypr/looknfeel.lua|scrolling:column_width|lua-float|Scrolling column width||0.1|1||Fraction of the screen one column takes|hyprctl reload|0.5|1||0.01"
   # ── Lid & sleep — /etc/systemd/logind.conf.d/, root-owned, laptop only.
   # These are the three questions a laptop actually asks. logind's own built-in
   # default for all three is 'suspend'; the fallback field records that so the
   # panel can show a value even before a drop-in exists.
-  "lid.close|Lid & sleep|$LOGIND_DROPIN|Login.HandleLidSwitch|ini-enum|Closing the lid||||suspend,suspend-then-hibernate,hibernate,lock,ignore,poweroff|What happens on battery when the lid closes|systemctl reload systemd-logind|suspend|1|"
-  "lid.closeAc|Lid & sleep|$LOGIND_DROPIN|Login.HandleLidSwitchExternalPower|ini-enum|Closing the lid on AC||||suspend,suspend-then-hibernate,hibernate,lock,ignore,poweroff|What happens while plugged in; many people want 'ignore' here|systemctl reload systemd-logind|suspend|1|"
-  "lid.closeDocked|Lid & sleep|$LOGIND_DROPIN|Login.HandleLidSwitchDocked|ini-enum|Closing the lid when docked||||ignore,suspend,suspend-then-hibernate,hibernate,lock,poweroff|What happens with an external monitor attached; 'ignore' is clamshell mode|systemctl reload systemd-logind|ignore|1|"
+  "lid.close|Lid & sleep|$LOGIND_DROPIN|Login.HandleLidSwitch|ini-enum|Closing the lid||||suspend,suspend-then-hibernate,hibernate,lock,ignore,poweroff|What happens on battery when the lid closes|systemctl reload systemd-logind|suspend|1||"
+  "lid.closeAc|Lid & sleep|$LOGIND_DROPIN|Login.HandleLidSwitchExternalPower|ini-enum|Closing the lid on AC||||suspend,suspend-then-hibernate,hibernate,lock,ignore,poweroff|What happens while plugged in; many people want 'ignore' here|systemctl reload systemd-logind|suspend|1||"
+  "lid.closeDocked|Lid & sleep|$LOGIND_DROPIN|Login.HandleLidSwitchDocked|ini-enum|Closing the lid when docked||||ignore,suspend,suspend-then-hibernate,hibernate,lock,poweroff|What happens with an external monitor attached; 'ignore' is clamshell mode|systemctl reload systemd-logind|ignore|1||"
   # ── Defaults
-  "default.editor|Defaults|$HOME/.local/state/omarchy/defaults/editor|-|line-enum|Default editor||||nvim,code,hx,micro,nano,zed|Editor Omarchy opens config files with||nvim|1|"
+  "default.editor|Defaults|$HOME/.local/state/omarchy/defaults/editor|-|line-enum|Default editor||||nvim,code,hx,micro,nano,zed|Editor Omarchy opens config files with||nvim|1||"
 )
 
 # Settings groups, in panel order: "name|icon|description"
 SETTING_GROUPS=(
   "Idle & power|󰐥|When the screen dims, locks and the machine suspends"
   "Appearance|󰏘|Theme, bar and how large everything is drawn"
-  "Input|󰌌|Keyboard and touchpad behaviour"
+  "Keyboard|󰌌|Key repeat, delay, layout and num lock"
+  "Mouse & pointer|󰍽|Sensitivity, acceleration, wheel and handedness"
+  "Touchpad|󰎶|Scrolling, tapping, dragging and clicks"
+  "Windows|󰖯|Corners, gaps, borders, layout and effects"
   "Lid & sleep|󰌢|What closing the lid does — shown on laptops only"
   "Defaults|󰒓|Which program Omarchy reaches for"
 )
 
 
-# Pure bash: `cut` here meant a fork per field, and the panel reads fifteen
-# fields from twenty-odd settings on every refresh — three hundred processes
+# Pure bash: `cut` here meant a fork per field, and the panel reads sixteen
+# fields from forty-odd settings on every refresh — hundreds of processes
 # for a string split.
 setting_field() { local -a fields; IFS='|' read -ra fields <<<"$1"; printf '%s' "${fields[$(($2 - 1))]:-}"; }
 
@@ -230,80 +275,424 @@ toml_set() {
 }
 
 # ── Hyprland Lua helpers ────────────────────────────────────────────────────
-# Narrow on purpose. They match an uncommented "key = value" line and only act
-# when that key appears EXACTLY ONCE in the file. A key that is absent, that
-# only appears inside a `--` comment, or that appears in two different tables
-# reads as missing, and the panel greys the control out.
-#
-# Refusing beats guessing here: these files decide whether the graphical session
-# starts at all, and a generic nested-table editor would need a real Lua parser
-# to be safe. Everything a single key can't express stays a whole-file entry in
-# MANIFEST, edited in a real editor.
-lua_key_hits() { grep -cE "^[[:space:]]*$2[[:space:]]*=" "$1" 2>/dev/null || true; }
+# Full-route parsing, never leaf-only. Two routes may share a leaf
+# (input:scroll_factor and input:touchpad:scroll_factor); the reader tracks
+# the colon-joined nesting inside hl.config blocks, without evaluating Lua.
+# Commented lines are ignored. hl.device / o.window single-line rules never
+# match the anchored `name =` pattern, and multiline device tables sit outside
+# any input parent, so their flat keys (e.g. `sensitivity`) never collide with
+# a global full route (e.g. `input:sensitivity`).
+REPL_BLOCK_START="-- replicant:settings:start"
+REPL_BLOCK_END="-- replicant:settings:end"
 
-lua_get() {
-  local file="$1" key="$2" raw
-  [[ -f "$file" ]] || return 1
-  [[ "$(lua_key_hits "$file" "$key")" == "1" ]] || return 1
-  raw=$(grep -E "^[[:space:]]*${key}[[:space:]]*=" "$file" | head -n1)
-  raw=${raw#*=}
-  printf '%s\n' "$raw" | sed -e 's/--.*$//' -e 's/[[:space:]]*$//' -e 's/,$//' \
-                             -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' \
-                             -e 's/^"//' -e 's/"$//'
-}
-
-lua_set() {
-  invalidate_file_maps
-  local file="$1" key="$2" value="$3" tmp
-  [[ -f "$file" ]] || return 1
-  [[ "$(lua_key_hits "$file" "$key")" == "1" ]] || return 1
-  tmp=$(mktemp)
-  awk -v key="$key" -v val="$value" '
-    !done_it && $0 ~ "^[[:space:]]*" key "[[:space:]]*=" {
-      line = $0; comment = ""
-      ci = index(line, "--")
-      if (ci > 0) { comment = substr(line, ci); line = substr(line, 1, ci - 1) }
-      match(line, /^[[:space:]]*/); indent = substr(line, 1, RLENGTH)
-      comma = (line ~ /,[[:space:]]*$/) ? "," : ""
-      out = indent key " = " val comma
-      if (comment != "") out = out " " comment
-      print out; done_it = 1; next
-    }
-    { print }
-    END { if (!done_it) exit 3 }
-  ' "$file" > "$tmp" || { rm -f "$tmp"; return 1; }
-  [[ -s "$tmp" ]] || { rm -f "$tmp"; return 1; }
-  mv "$tmp" "$file"
-}
-
-# lua_key_of <option> — the Lua key of a registry path: "input:touchpad:
-# natural_scroll" is the line `natural_scroll = …` in the file.
+# lua_key_of <option> — the leaf of a registry path: "input:touchpad:
+# natural_scroll" is the line `natural_scroll = …` in its table.
 lua_key_of() { printf '%s\n' "${1##*:}"; }
 
+# lua_all_routes <file> — every uncommented `key = value` inside the file as
+# "full:route<TAB>value", in file order, duplicates included. The caller
+# decides: the managed block takes the last occurrence, outside content
+# requires exactly one (anything else reads as missing, refusing to guess).
+lua_all_routes() {
+  local file="$1"
+  [[ -f "$file" ]] || return 1
+  awk '
+    {
+      orig = $0
+      line = orig
+      ci = index(line, "--")
+      if (ci > 0) line = substr(line, 1, ci - 1)
+      if (line ~ /^[[:space:]]*$/) next
+      tmp = line; opens = gsub(/\{/, "{", tmp)
+      tmp = line; closes = gsub(/\}/, "}", tmp)
+      # table open: `name = {` with nothing after the brace
+      if (line ~ /^[[:space:]]*[A-Za-z0-9_]+[[:space:]]*=[[:space:]]*\{[[:space:]]*$/) {
+        name = line; sub(/^[[:space:]]*/, "", name); sub(/[[:space:]]*=.*$/, "", name)
+        if (name ~ /^[A-Za-z0-9_]+$/) {
+          new_depth = depth + opens - closes
+          sp++; stack[sp] = name; sdepth[sp] = new_depth
+          depth = new_depth
+          next
+        }
+      }
+      # leaf: anchored `key = raw`, key a bare identifier
+      if (line ~ /^[[:space:]]*[A-Za-z0-9_]+[[:space:]]*=/) {
+        key = line; sub(/^[[:space:]]*/, "", key); sub(/[[:space:]]*=.*$/, "", key)
+        if (key ~ /^[A-Za-z0-9_]+$/) {
+          raw = line; sub(/^[^=]*=/, "", raw)
+          sub(/^[[:space:]]*/, "", raw); sub(/[[:space:]]*$/, "", raw)
+          sub(/,[[:space:]]*$/, "", raw); sub(/[[:space:]]*$/, "", raw)
+          if (raw ~ /^".*"$/) { sub(/^"/, "", raw); sub(/"$/, "", raw) }
+          else if (raw ~ /^'\''.*'\''$/) { sub(/^'\''/, "", raw); sub(/'\''$/, "", raw) }
+          route = ""
+          for (i = 1; i <= sp; i++) route = (route == "" ? stack[i] : route ":" stack[i])
+          route = (route == "" ? key : route ":" key)
+          printf "%s\t%s\n", route, raw
+        }
+      }
+      new_depth = depth + opens - closes
+      # table opens already pushed above; only pop here
+      if (!(line ~ /^[[:space:]]*[A-Za-z0-9_]+[[:space:]]*=[[:space:]]*\{[[:space:]]*$/)) {
+        depth = new_depth
+        while (sp > 0 && sdepth[sp] > depth) sp--
+      } else {
+        depth = new_depth
+      }
+    }
+  ' "$file"
+}
+
+# lua_block_check <file>: 0 block present and well-formed, 2 no block,
+# 1 duplicated or damaged markers (do not modify the file).
+lua_block_check() {
+  local file="$1" s e sl el
+  [[ -f "$file" ]] || return 1
+  s=$(grep -cF -- "$REPL_BLOCK_START" "$file" 2>/dev/null || true)
+  e=$(grep -cF -- "$REPL_BLOCK_END" "$file" 2>/dev/null || true)
+  [[ "$s" == "0" && "$e" == "0" ]] && return 2
+  [[ "$s" == "1" && "$e" == "1" ]] || return 1
+  sl=$(grep -nF -- "$REPL_BLOCK_START" "$file" | head -n1 | cut -d: -f1)
+  el=$(grep -nF -- "$REPL_BLOCK_END" "$file" | head -n1 | cut -d: -f1)
+  [[ -n "$sl" && -n "$el" && "$sl" -lt "$el" ]] || return 1
+  return 0
+}
+
+# lua_block_lines <file> — inner lines of the managed block. Empty when the
+# file carries no block. Fails on damaged markers.
+lua_block_lines() {
+  local file="$1" rc=0
+  lua_block_check "$file"; rc=$?
+  (( rc == 2 )) && return 0
+  (( rc != 0 )) && return 1
+  awk -v s="$REPL_BLOCK_START" -v e="$REPL_BLOCK_END" '
+    $0 == s { inside = 1; next }
+    $0 == e { inside = 0; next }
+    inside { print }
+  ' "$file"
+}
+
+# lua_outside_lines <file> — the file with the managed block removed.
+# Fails on damaged markers so the caller never edits half a file.
+lua_outside_lines() {
+  local file="$1" rc=0
+  lua_block_check "$file"; rc=$?
+  (( rc == 2 )) && { cat -- "$file"; return 0; }
+  (( rc != 0 )) && return 1
+  awk -v s="$REPL_BLOCK_START" -v e="$REPL_BLOCK_END" '
+    $0 == s { skip = 1; next }
+    $0 == e { skip = 0; next }
+    !skip { print }
+  ' "$file"
+}
+
+# lua_value_in_routes <route> — last occurrence of route on stdin
+# ("route<TAB>value" lines). Used for block content, where the block wins.
+lua_value_in_routes() {
+  local want="$1" k v found=1 out=""
+  while IFS=$'\t' read -r k v; do
+    [[ "$k" == "$want" ]] && { out="$v"; found=0; }
+  done
+  (( found == 0 )) || return 1
+  printf '%s\n' "$out"
+}
+
+# lua_file_value <file> <route> — block first (last wins), then outside
+# content requiring exactly one occurrence. Anything else fails.
+lua_file_value() {
+  local file="$1" want="$2" rc=0 tmp v n
+  [[ -f "$file" ]] || return 1
+  if lua_block_check "$file"; then
+    tmp=$(mktemp) || return 1
+    lua_block_lines "$file" > "$tmp" 2>/dev/null || { rm -f "$tmp"; return 1; }
+    if v=$(lua_all_routes "$tmp" 2>/dev/null | lua_value_in_routes "$want" 2>/dev/null); then
+      rm -f "$tmp"; printf '%s\n' "$v"; return 0
+    fi
+    rm -f "$tmp"
+  else
+    rc=$?
+    (( rc != 2 )) && return 1
+  fi
+  tmp=$(mktemp) || return 1
+  lua_outside_lines "$file" > "$tmp" 2>/dev/null || { rm -f "$tmp"; return 1; }
+  n=$(lua_all_routes "$tmp" 2>/dev/null | awk -F'\t' -v w="$want" '$1 == w { c++ } END { print c+0 }')
+  if [[ "$n" == "1" ]]; then
+    v=$(lua_all_routes "$tmp" 2>/dev/null | awk -F'\t' -v w="$want" '$1 == w { print substr($0, index($0, "\t")+1); exit }')
+    rm -f "$tmp"; printf '%s\n' "$v"; return 0
+  fi
+  rm -f "$tmp"
+  return 1
+}
+
+# Backwards-compatible leaf counter, now full-route aware. Counts occurrences
+# of a full route in the whole file (block included).
+lua_key_hits() { lua_all_routes "$1" 2>/dev/null | awk -F'\t' -v w="$2" '$1 == w { c++ } END { print c+0 }'; }
+
+# lua_get <file> <route> — kept for callers that read one value.
+lua_get() { lua_file_value "$1" "$2"; }
+
+# lua_set <file> <route> <formatted-value> — low-level block update without
+# Hyprland validation. set_setting_value uses the validating wrapper below.
+lua_set() {
+  local file="$1" route="$2" formatted="$3"
+  lua_block_write "$file" "$route" "$formatted"
+}
+
+# lua_format_value <type> <value> — the Lua literal for the block.
+lua_format_value() {
+  local type="$1" value="$2"
+  case "$type" in
+    lua-enum) printf '"%s"\n' "$value" ;;
+    *) printf '%s\n' "$value" ;;
+  esac
+}
+
+# lua_block_write <file> <route> <formatted-value> — replace the managed block
+# deterministically, preserving every byte outside it. The block always sits
+# at the end of the file. Rejects duplicated/damaged markers without touching
+# the file. Idempotent: the same values always render the same bytes.
+lua_block_write() {
+  invalidate_file_maps
+  local file="$1" route="$2" formatted="$3" rc=0
+  [[ -f "$file" ]] || return 1
+  lua_block_check "$file"; rc=$?
+  (( rc == 1 )) && return 1
+  local tmpdir tmp_out tmp_blk tmp_new
+  tmpdir=$(mktemp -d) || return 1
+  tmp_out="$tmpdir/outside"; tmp_blk="$tmpdir/block"; tmp_new="$tmpdir/new"
+  if (( rc == 0 )); then
+    lua_outside_lines "$file" > "$tmp_out" || { rm -rf "$tmpdir"; return 1; }
+  else
+    cat -- "$file" > "$tmp_out" || { rm -rf "$tmpdir"; return 1; }
+  fi
+  # existing managed values, last wins
+  declare -A vals=()
+  if (( rc == 0 )); then
+    local blk="$tmpdir/blkroutes"
+    lua_block_lines "$file" > "$blk" 2>/dev/null || { rm -rf "$tmpdir"; return 1; }
+    local k v
+    while IFS=$'\t' read -r k v; do
+      [[ -n "$k" ]] && vals["$k"]="$v"
+    done < <(lua_all_routes "$blk" 2>/dev/null || true)
+  fi
+  vals["$route"]="$formatted"
+  if ! lua_render_block "$file" "$tmp_blk" vals; then rm -rf "$tmpdir"; return 1; fi
+  # outside bytes untouched, block at the end
+  if [[ -s "$tmp_out" ]] && [[ -n "$(tail -c1 "$tmp_out" 2>/dev/null)" ]]; then
+    printf '\n' >> "$tmp_out" || { rm -rf "$tmpdir"; return 1; }
+  fi
+  cat -- "$tmp_out" "$tmp_blk" > "$tmp_new" || { rm -rf "$tmpdir"; return 1; }
+  [[ -s "$tmp_new" ]] || { rm -rf "$tmpdir"; return 1; }
+  mv -- "$tmp_new" "$file" || { rm -rf "$tmpdir"; return 1; }
+  rm -rf "$tmpdir"
+}
+
+# lua_render_block <file> <out> <assoc-name> — deterministic hl.config block
+# for the file's managed routes. Only tables carrying values are emitted,
+# keys sorted byte-wise (LC_ALL=C).
+lua_render_block() {
+  local file="$1" out="$2" aname="$3"
+  local -a routes=()
+  eval 'for k in "${!'"$aname"'[@]}"; do routes+=("$k"); done'
+  [[ ${#routes[@]} -gt 0 ]] || return 1
+  {
+    printf '%s\n' "$REPL_BLOCK_START"
+    printf -- '-- Managed by Replicant. Do not edit inside this block by hand.\n'
+    if [[ "$file" == *input.lua ]]; then
+      lua_render_input_block "$aname"
+    elif [[ "$file" == *looknfeel.lua ]]; then
+      lua_render_look_block "$aname"
+    else
+      return 1
+    fi
+    printf '%s\n' "$REPL_BLOCK_END"
+  } > "$out" || return 1
+  [[ -s "$out" ]] || return 1
+}
+
+lua_render_input_block() {
+  local aname="$1" k v
+  local -a direct=() touch=()
+  eval 'for k in "${!'"$aname"'[@]}"; do
+    case "$k" in
+      input:touchpad:*) touch+=("${k#input:touchpad:}") ;;
+      input:*) direct+=("${k#input:}") ;;
+    esac
+  done'
+  [[ ${#direct[@]} -eq 0 && ${#touch[@]} -eq 0 ]] && return 1
+  printf 'hl.config({\n  input = {\n'
+  local key
+  while IFS= read -r key; do
+    [[ -n "$key" ]] || continue
+    eval 'v="${'"$aname"'[input:'"$key"']}"'
+    printf '    %s = %s,\n' "$key" "$v"
+  done < <(printf '%s\n' "${direct[@]}" | LC_ALL=C sort -u)
+  if (( ${#touch[@]} )); then
+    printf '    touchpad = {\n'
+    while IFS= read -r key; do
+      [[ -n "$key" ]] || continue
+      eval 'v="${'"$aname"'[input:touchpad:'"$key"']}"'
+      printf '      %s = %s,\n' "$key" "$v"
+    done < <(printf '%s\n' "${touch[@]}" | LC_ALL=C sort -u)
+    printf '    },\n'
+  fi
+  printf '  },\n})\n'
+}
+
+lua_render_look_block() {
+  local aname="$1" k v
+  local -a general=() anim=() scroll=() deco=() blur=() shadow=()
+  eval 'for k in "${!'"$aname"'[@]}"; do
+    case "$k" in
+      general:*) v="${k#general:}"; general+=("$v") ;;
+      animations:*) v="${k#animations:}"; anim+=("$v") ;;
+      scrolling:*) v="${k#scrolling:}"; scroll+=("$v") ;;
+      decoration:blur:*) v="${k#decoration:blur:}"; blur+=("$v") ;;
+      decoration:shadow:*) v="${k#decoration:shadow:}"; shadow+=("$v") ;;
+      decoration:*) v="${k#decoration:}"; deco+=("$v") ;;
+    esac
+  done'
+  printf 'hl.config({\n'
+  local key
+  if (( ${#anim[@]} )); then
+    printf '  animations = {\n'
+    while IFS= read -r key; do
+      [[ -n "$key" ]] || continue
+      eval 'v="${'"$aname"'[animations:'"$key"']}"'
+      printf '    %s = %s,\n' "$key" "$v"
+    done < <(printf '%s\n' "${anim[@]}" | LC_ALL=C sort -u)
+    printf '  },\n'
+  fi
+  if (( ${#deco[@]} + ${#blur[@]} + ${#shadow[@]} > 0 )); then
+    printf '  decoration = {\n'
+    while IFS= read -r key; do
+      [[ -n "$key" ]] || continue
+      eval 'v="${'"$aname"'[decoration:'"$key"']}"'
+      printf '    %s = %s,\n' "$key" "$v"
+    done < <(printf '%s\n' "${deco[@]}" | LC_ALL=C sort -u)
+    if (( ${#blur[@]} )); then
+      printf '    blur = {\n'
+      while IFS= read -r key; do
+        [[ -n "$key" ]] || continue
+        eval 'v="${'"$aname"'[decoration:blur:'"$key"']}"'
+        printf '      %s = %s,\n' "$key" "$v"
+      done < <(printf '%s\n' "${blur[@]}" | LC_ALL=C sort -u)
+      printf '    },\n'
+    fi
+    if (( ${#shadow[@]} )); then
+      printf '    shadow = {\n'
+      while IFS= read -r key; do
+        [[ -n "$key" ]] || continue
+        eval 'v="${'"$aname"'[decoration:shadow:'"$key"']}"'
+        printf '      %s = %s,\n' "$key" "$v"
+      done < <(printf '%s\n' "${shadow[@]}" | LC_ALL=C sort -u)
+      printf '    },\n'
+    fi
+    printf '  },\n'
+  fi
+  if (( ${#general[@]} )); then
+    printf '  general = {\n'
+    while IFS= read -r key; do
+      [[ -n "$key" ]] || continue
+      eval 'v="${'"$aname"'[general:'"$key"']}"'
+      printf '    %s = %s,\n' "$key" "$v"
+    done < <(printf '%s\n' "${general[@]}" | LC_ALL=C sort -u)
+    printf '  },\n'
+  fi
+  if (( ${#scroll[@]} )); then
+    printf '  scrolling = {\n'
+    while IFS= read -r key; do
+      [[ -n "$key" ]] || continue
+      eval 'v="${'"$aname"'[scrolling:'"$key"']}"'
+      printf '    %s = %s,\n' "$key" "$v"
+    done < <(printf '%s\n' "${scroll[@]}" | LC_ALL=C sort -u)
+    printf '  },\n'
+  fi
+  printf '})\n'
+}
+
 # hypr_in_force <option> — the value Hyprland is using now, as the file would
-# spell it ("40", "true", "es"). Fails when there is no Hyprland to ask.
-# `has()`, never `//`: jq's alternative operator treats false as missing, so a
-# switch that is off would read as unknown.
+# spell it ("40", "true", "es"). Fails when there is no Hyprland to ask, when
+# the option is unset ([[EMPTY]]/[[AUTO]] placeholders), or for mixed per-side
+# css gaps which are not a single int.
 hypr_in_force() {
   command -v hyprctl >/dev/null 2>&1 || return 1
   local out
   out=$(timeout 2 hyprctl getoption "$1" -j 2>/dev/null) || return 1
-  jq -er 'if has("int") then .int elif has("float") then .float
-          elif has("bool") then .bool elif has("str") then .str else empty end
-          | tostring' <<<"$out" 2>/dev/null
+  local kind
+  kind=$(jq -r 'if has("int") then "int" elif has("float") then "float"
+    elif has("bool") then "bool" elif has("str") then "str"
+    elif has("css") then "css" else "none" end' <<<"$out" 2>/dev/null) || return 1
+  case "$kind" in
+    int|float|bool)
+      jq -er 'if has("int") then .int elif has("float") then .float
+              elif has("bool") then .bool else empty end
+              | tostring' <<<"$out" 2>/dev/null
+      ;;
+    str)
+      local s
+      s=$(jq -er '.str' <<<"$out" 2>/dev/null) || return 1
+      [[ "$s" == "[["*"]]" ]] && return 1
+      printf '%s\n' "$s"
+      ;;
+    css)
+      local css first ok=1 part
+      css=$(jq -er '.css' <<<"$out" 2>/dev/null) || return 1
+      first=""; ok=1
+      for part in $css; do
+        [[ -z "$first" ]] && first="$part"
+        [[ "$part" == "$first" ]] || { ok=0; break; }
+      done
+      (( ok )) && [[ -n "$first" ]] && printf '%s\n' "$first" || return 1
+      ;;
+    *) return 1 ;;
+  esac
 }
 
-# hypr_overrider <key> <own-file> — the tracked Hyprland file, other than the
-# setting's own, with an uncommented `<key> =` line. Found modules are asked
-# first: OmaSettings' omasettings.lua is loaded last, which is why it wins.
+# hypr_overrider <route> <own-file> — the tracked Hyprland file, other than the
+# setting's own, holding the same full route. Found modules are asked first:
+# OmaSettings' omasettings.lua is loaded last, which is why it wins.
 hypr_overrider() {
-  local key="$1" own="$2" entry src
+  local route="$1" own="$2" entry src
   for entry in ${AUTO_MANIFEST[@]+"${AUTO_MANIFEST[@]}"} "${TRACKED[@]}"; do
     src="${entry%%:*}"
     [[ "$src" == "$HOME/.config/hypr/"*.lua && "$src" != "$own" && -f "$src" ]] || continue
-    [[ "$(lua_key_hits "$src" "$key")" -ge 1 ]] && { printf '%s\n' "${entry##*:}"; return 0; }
+    lua_file_value "$src" "$route" >/dev/null 2>&1 && { printf '%s\n' "${entry##*:}"; return 0; }
   done
   return 1
+}
+
+# hypr_device_override <file> <leaf> — true when any hl.device rule in the
+# file sets <leaf>. Device names are never printed: the notice names no
+# private hardware.
+hypr_device_override() {
+  local file="$1" leaf="$2"
+  [[ -f "$file" ]] || return 1
+  awk -v leaf="$leaf" '
+    {
+      line = $0
+      ci = index(line, "--")
+      if (ci > 0) line = substr(line, 1, ci - 1)
+      if (line ~ /hl\.device[[:space:]]*\(/) { indev = 1 }
+      if (indev) {
+        # anchored inner line (multiline tables) or anywhere inside a
+        # single-line hl.device({ ... leaf = ... }) rule
+        if (line ~ "^[[:space:]]*" leaf "[[:space:]]*=") { found = 1; exit 0 }
+        if (line ~ "(^|[^A-Za-z0-9_])" leaf "[[:space:]]*=") { found = 1; exit 0 }
+        # track multiline device tables by brace depth
+        if (!started) {
+          t = line; o = gsub(/\{/, "{", t); t = line; c = gsub(/\}/, "}", t)
+          d = o - c
+          if (d > 0) { started = 1; depth = d }
+          else if (o > 0 && c > 0) { indev = 0 }
+        } else {
+          t = line; o = gsub(/\{/, "{", t); t = line; c = gsub(/\}/, "}", t)
+          depth += o - c
+          if (depth <= 0) { indev = 0; started = 0; depth = 0 }
+        }
+      }
+    }
+    END { exit !found }
+  ' "$file"
 }
 
 # ── read / write one setting ────────────────────────────────────────────────
@@ -356,8 +745,8 @@ get_setting_value() {
       [[ -n "$raw" ]] || return 1
       printf '%s\n' "$raw"
       ;;
-    lua-int|lua-bool|lua-enum)
-      map_lookup "$file" lua "$(lua_key_of "$path")"
+    lua-int|lua-float|lua-bool|lua-enum)
+      lua_file_value "$file" "$path"
       ;;
     *)
       [[ -f "$file" ]] || return 1
@@ -400,7 +789,7 @@ set_setting_value() {
       [[ "$value" =~ ^-?[0-9]+$ ]] || { echo "$1: '$value' is not a whole number" >&2; return 1; }
       num_in_range "$value" "$min" "$max" || { echo "$1: $value$unit is outside ${min:-?}–${max:-?}$unit" >&2; return 1; }
       ;;
-    toml-float)
+    toml-float|lua-float)
       [[ "$value" =~ ^-?[0-9]*\.?[0-9]+$ ]] || { echo "$1: '$value' is not a number" >&2; return 1; }
       num_in_range "$value" "$min" "$max" || { echo "$1: $value$unit is outside ${min:-?}–${max:-?}$unit" >&2; return 1; }
       ;;
@@ -409,7 +798,12 @@ set_setting_value() {
       ;;
     enum|lua-enum|line-enum|theme|ini-enum)
       [[ -n "$options" ]] || { echo "$1: no options available on this machine" >&2; return 1; }
-      [[ ",$options," == *",$value,"* ]] || { echo "$1: '$value' is not one of: ${options//,/, }" >&2; return 1; }
+      if [[ "$options" == "@x11-layouts" ]]; then
+        # dynamic list already resolved above; accept what this machine knows
+        [[ ",$options," == *",$value,"* ]] || { echo "$1: '$value' is not one of: ${options//,/, }" >&2; return 1; }
+      else
+        [[ ",$options," == *",$value,"* ]] || { echo "$1: '$value' is not one of: ${options//,/, }" >&2; return 1; }
+      fi
       ;;
   esac
 
@@ -433,15 +827,62 @@ set_setting_value() {
       ini_set "$file" "$path" "$value" "$apply" || { echo "$1: $file was left untouched" >&2; return 1; }
       apply=""
       ;;
-    lua-int|lua-bool)
+    lua-int|lua-float|lua-bool|lua-enum)
       [[ -f "$file" ]] || { echo "file not found: $file" >&2; return 1; }
+      if ! command -v hyprctl >/dev/null 2>&1; then
+        echo "$1: Hyprland is not available — left $file untouched, nothing was applied" >&2
+        return 1
+      fi
+      # A repeated full route outside the managed block is ambiguous: refuse
+      # rather than guessing. The block itself always wins (it sits last), so
+      # one outside occurrence plus the block is fine — only two outside is not.
+      {
+        out_tmp=$(mktemp) || { echo "$1: could not stage $file" >&2; return 1; }
+        if lua_outside_lines "$file" > "$out_tmp" 2>/dev/null; then
+          out_n=$(lua_all_routes "$out_tmp" 2>/dev/null | awk -F'\t' -v w="$path" '$1 == w { c++ } END { print c+0 }')
+          [[ "$out_n" -gt 1 ]] && { rm -f "$out_tmp"; echo "$1: '$path' is ambiguous in $file — left untouched" >&2; return 1; }
+        fi
+        rm -f "$out_tmp"
+      }
+      formatted=$(lua_format_value "$type" "$value")
+      before_errs=$(hyprctl configerrors 2>/dev/null | grep -v '^no errors' || true)
       backup_before_write "$file"
-      lua_set "$file" "$(lua_key_of "$path")" "$value" || { echo "$1: '$path' is missing or ambiguous in $file — left untouched" >&2; return 1; }
-      ;;
-    lua-enum)
-      [[ -f "$file" ]] || { echo "file not found: $file" >&2; return 1; }
-      backup_before_write "$file"
-      lua_set "$file" "$(lua_key_of "$path")" "\"$value\"" || { echo "$1: '$path' is missing or ambiguous in $file — left untouched" >&2; return 1; }
+      if ! lua_block_write "$file" "$path" "$formatted"; then
+        echo "$1: '$path' markers are duplicated or damaged in $file — left untouched" >&2
+        return 1
+      fi
+      if ! bash -c "$apply" >/dev/null 2>&1; then
+        # shellcheck disable=SC2012  # names are ours: <file>.bak.<epoch>, no spaces
+        newest=$(ls -1t -- "$file".bak.* 2>/dev/null | head -n1 || true)
+        [[ -n "$newest" ]] && cp -a -- "$newest" "$file" 2>/dev/null || true
+        invalidate_file_maps
+        bash -c "$apply" >/dev/null 2>&1 || true
+        echo "$1: '$apply' failed — restored $file, nothing was applied" >&2
+        return 1
+      fi
+      after_errs=$(hyprctl configerrors 2>/dev/null | grep -v '^no errors' || true)
+      if [[ -n "$after_errs" ]]; then
+        is_new=0
+        if [[ -z "$before_errs" ]]; then is_new=1
+        elif ! grep -Fxqf <(printf '%s\n' "$before_errs") <(printf '%s\n' "$after_errs") 2>/dev/null; then
+          # after has lines not in before; confirm with comm-style check
+          while IFS= read -r line; do
+            [[ -n "$line" ]] || continue
+            grep -Fxq -- "$line" <(printf '%s\n' "$before_errs") 2>/dev/null || { is_new=1; break; }
+          done < <(printf '%s\n' "$after_errs")
+        fi
+        if (( is_new )); then
+          # shellcheck disable=SC2012  # names are ours: <file>.bak.<epoch>, no spaces
+          newest=$(ls -1t -- "$file".bak.* 2>/dev/null | head -n1 || true)
+          [[ -n "$newest" ]] && cp -a -- "$newest" "$file" 2>/dev/null || true
+          invalidate_file_maps
+          bash -c "$apply" >/dev/null 2>&1 || true
+          echo "$1: Hyprland reported new config errors — restored $file, nothing was saved" >&2
+          printf '%s\n' "$after_errs" >&2
+          return 1
+        fi
+      fi
+      apply=""
       ;;
     number|bool)
       [[ -f "$file" ]] || { echo "file not found: $file" >&2; return 1; }
@@ -503,7 +944,7 @@ human_value() {
   [[ -n "$raw" ]] || { echo "—"; return; }
   case "$type" in
     bool|lua-bool) [[ "$raw" == "true" ]] && echo "on" || echo "off"; return ;;
-    toml-float)    raw=$(canon_number "$raw") ;;
+    toml-float|lua-float) raw=$(canon_number "$raw") ;;
   esac
   if [[ "$scale" == "60" ]]; then human_duration "$raw"; return; fi
   case "$unit" in
@@ -571,20 +1012,12 @@ load_file_map() {
               print (sect == "" ? k : sect "." k) "\t" v
             }' "$file" 2>/dev/null || true) ;;
         lua)
-          # lua_get deliberately refuses a key that appears twice — a nested
-          # table needs a real parser and these files decide whether the
-          # graphical session starts. The map keeps that: a key seen more than
-          # once is dropped rather than guessed at.
-          FILE_MAP_CACHE[$key]=$(awk '
-            /^[[:space:]]*[^#=[:space:]]+[[:space:]]*=/ {
-              k = $0; sub(/[[:space:]]*=.*$/, "", k); gsub(/^[[:space:]]+/, "", k)
-              v = $0; sub(/^[^=]*=[[:space:]]*/, "", v)
-              sub(/--.*$/, "", v); sub(/,[[:space:]]*$/, "", v)
-              gsub(/^[[:space:]]+|[[:space:]]+$/, "", v)
-              gsub(/^"|"$/, "", v)
-              n[k]++; val[k] = v
-            }
-            END { for (k in n) if (n[k] == 1) print k "\t" val[k] }' "$file" 2>/dev/null || true) ;;
+          # Full-route parsing (see lua_all_routes): a key seen more than once
+          # is dropped rather than guessed at. Block-aware reads bypass this
+          # map via lua_file_value; this stays for direct file_map callers.
+          FILE_MAP_CACHE[$key]=$(lua_all_routes "$file" 2>/dev/null | awk -F'\t' '
+            { n[$1]++; val[$1] = $2 }
+            END { for (k in n) if (n[k] == 1) print k "\t" val[k] }' 2>/dev/null || true) ;;
       esac
     fi
   fi
@@ -598,12 +1031,11 @@ file_map() {
 }
 
 # Parse, in this shell, every file the registry will be read from: the live one,
-# Omarchy's default and the copy in the repo. Fourteen files instead of seventy
-# lookups, and every lookup after this is a string search.
+# Omarchy's default and the copy in the repo. JSON/TOML files are parsed once;
+# Lua files bypass the cache via lua_file_value (block-aware, full routes).
 map_kind_for_type() {
   case "$1" in
     toml-int|toml-float|ini-enum)  echo toml ;;
-    lua-int|lua-bool|lua-enum)     echo lua ;;
     number|bool|enum)              echo json ;;
     *)                             echo "" ;;
   esac
@@ -626,7 +1058,7 @@ warm_setting_file_maps() {
 #
 # The obvious spelling, map_get "$(file_map ...)" "$key", is TWO command
 # substitutions and therefore two forks per read, three reads per setting,
-# twenty-four settings. This is one.
+# forty-seven settings. This is one.
 map_lookup() {
   load_file_map "$1" "$2"
   local k v
@@ -647,8 +1079,8 @@ read_setting_from() {
     toml-int|toml-float|ini-enum)
       raw=$(map_lookup "$file" toml "$path") || return 1
       [[ -n "$raw" ]] && printf '%s\n' "$raw" || return 1 ;;
-    lua-int|lua-bool|lua-enum)
-      map_lookup "$file" lua "$(lua_key_of "$path")" ;;
+    lua-int|lua-float|lua-bool|lua-enum)
+      lua_file_value "$file" "$path" ;;
     number|bool|enum)
       raw=$(map_lookup "$file" json "$path") || return 1
       [[ "$raw" == "null" ]] && return 1
@@ -659,16 +1091,56 @@ read_setting_from() {
 
 # The value this setting would have on a machine that had never been touched.
 # Read out of the file Omarchy actually ships where there is one; otherwise the
-# registry's `fallback`, which is the shell's own built-in default.
+# registry's `fallback`, which is the shell's own built-in default. For lua-*
+# the installed Omarchy config comes first and the Hyprland value in force is
+# the last fallback, so a clean install with only commented examples still
+# shows what the session does.
 setting_default_value() {
   local entry; entry=$(find_setting "$1") || return 1
-  local file def
+  local file def type path
   file=$(setting_field "$entry" 3)
-  if [[ "$file" != "-" ]] && def=$(default_for_src "$file" 2>/dev/null) && [[ -n "$def" ]]; then
-    read_setting_from "$entry" "$def" && return 0
+  type=$(setting_field "$entry" 5)
+  path=$(setting_field "$entry" 4)
+  if [[ "$file" != "-" ]]; then
+    if def=$(default_for_src "$file" 2>/dev/null) && [[ -n "$def" ]]; then
+      if cand=$(read_setting_from "$entry" "$def" 2>/dev/null); then
+        if [[ "$type" == lua-enum ]]; then
+          opts=$(setting_options "$entry" 2>/dev/null || true)
+          if [[ -n "$opts" && "$opts" != "@x11-layouts" ]]; then
+            [[ ",$opts," == *",$cand,"* ]] || cand=""
+          fi
+        fi
+        [[ -n "$cand" ]] && { printf '%s\n' "$cand"; return 0; }
+      fi
+      # default_for_src returns the commented config file for hypr/*.lua,
+      # whose real values live under default/hypr/. Try that sibling too.
+      if [[ "$type" == lua-* ]]; then
+        local om="${OMARCHY_PATH:-/usr/share/omarchy}"
+        # shellcheck disable=SC2295  # $HOME has no glob characters here
+        local rel="${file#$HOME/.config/}"
+        if [[ "$rel" != "$file" && -f "$om/default/$rel" ]]; then
+          if cand=$(read_setting_from "$entry" "$om/default/$rel" 2>/dev/null); then
+            if [[ "$type" == lua-enum ]]; then
+              opts=$(setting_options "$entry" 2>/dev/null || true)
+              if [[ -n "$opts" && "$opts" != "@x11-layouts" ]]; then
+                [[ ",$opts," == *",$cand,"* ]] || cand=""
+              else
+                # kb_layout in the default file is a Lua variable
+                # (kb_layout = kb_layout), not a literal layout code.
+                [[ "$cand" == "kb_layout" || "$cand" == "kb_variant" || "$cand" == "kb_options" ]] && cand=""
+              fi
+            fi
+            [[ -n "$cand" ]] && { printf '%s\n' "$cand"; return 0; }
+          fi
+        fi
+      fi
+    fi
   fi
   def=$(setting_field "$entry" 13)
   [[ -n "$def" ]] && { printf '%s\n' "$def"; return 0; }
+  if [[ "$type" == lua-* ]]; then
+    hypr_in_force "$path" 2>/dev/null && return 0
+  fi
   return 1
 }
 
@@ -756,18 +1228,19 @@ build_settings_json() {
   invalidate_file_maps
   warm_setting_file_maps
   # One jq invocation for the whole array, not one per setting. The panel polls
-  # status once a minute and refreshes after every write, and twenty-odd `jq -n`
+  # status once a minute and refreshes after every write, and forty-odd `jq -n`
   # spawns per build were most of the time that took.
   local entry id group file path type label unit min max options hint value available fallback implicit
-  local scale disp dvalue dmin dmax dstep vtext defval deftext repoval repotext canrd canrr numeric boolean
-  local lnotice inforce by
+  local scale disp step dvalue dmin dmax dstep vtext defval deftext repoval repotext canrd canrr numeric boolean
+  local lnotice inforce by blocked
+  local dim_inactive_val="" blur_val="" layout_val=""
   {
   local laptop=1; is_laptop || laptop=0
   local -a F
   for entry in "${SETTINGS[@]}"; do
     # Split the line ONCE. Each setting_field call is a command substitution,
-    # which is a fork, and thirteen of them per setting across twenty-four
-    # settings was three hundred forks to read a string this shell already had.
+    # which is a fork, and sixteen of them per setting across forty-odd
+    # settings would be hundreds of forks to read a string this shell already had.
     IFS='|' read -ra F <<<"$entry"
     id="${F[0]}";        group="${F[1]}"
     # A desktop has no lid. The group is absent rather than greyed out.
@@ -777,12 +1250,34 @@ build_settings_json() {
     unit="${F[6]}";      min="${F[7]}"
     max="${F[8]}";       hint="${F[10]}"
     fallback="${F[12]:-}"
-    scale="${F[13]:-}";  disp="${F[14]:-}"
+    scale="${F[13]:-}";  disp="${F[14]:-}"; step="${F[15]:-}"
     [[ -n "$scale" ]] || scale=1
     [[ -n "$disp" ]] || disp="$unit"
     options=$(setting_options "$entry")
     value=$(get_setting_value "$id" 2>/dev/null) || value=""
     implicit=false
+    # The Hyprland value in force when the option is not written anywhere.
+    # Tried before the registry fallback: the session already merges Omarchy's
+    # defaults, so its answer beats the wiki default the fallback records.
+    if [[ -z "$value" && "$type" == lua-* && -n "$path" ]]; then
+      if inforce_tmp=$(hypr_in_force "$path" 2>/dev/null); then
+        # bool normalisation (hypr may report 1/0)
+        if [[ "$type" == lua-bool ]]; then
+          [[ "$inforce_tmp" == 1 ]] && inforce_tmp=true
+          [[ "$inforce_tmp" == 0 ]] && inforce_tmp=false
+        fi
+        # enum guard: only accept what this machine offers
+        if [[ "$type" == lua-enum && -n "$options" && "$options" != "@x11-layouts" ]]; then
+          [[ ",$options," == *",$inforce_tmp,"* ]] || inforce_tmp=""
+        elif [[ "$type" == lua-enum && "$options" == "@x11-layouts" ]]; then
+          : # dynamic list checked below via shape; accept for now
+        fi
+        if [[ "$type" == lua-float ]]; then
+          inforce_tmp=$(canon_number "$inforce_tmp" 2>/dev/null || printf '%s' "$inforce_tmp")
+        fi
+        if [[ -n "$inforce_tmp" ]]; then value="$inforce_tmp"; implicit=true; fi
+      fi
+    fi
     if [[ -z "$value" && -n "$fallback" ]]; then value="$fallback"; implicit=true; fi
     if [[ -n "$value" ]]; then available=true; else available=false; fi
 
@@ -792,13 +1287,17 @@ build_settings_json() {
     case "$type" in
       number|toml-int|lua-int)
         numeric=true; [[ "$value" =~ ^-?[0-9]+$ ]] || { value=""; available=false; } ;;
-      toml-float)
+      toml-float|lua-float)
         numeric=true; [[ "$value" =~ ^-?[0-9]*\.?[0-9]+$ ]] || { value=""; available=false; } ;;
       bool|lua-bool)
         boolean=true; [[ "$value" == "true" || "$value" == "false" ]] || { value="false"; available=false; } ;;
+      lua-enum)
+        if [[ -n "$value" && -n "$options" && "$options" != "@x11-layouts" ]]; then
+          [[ ",$options," == *",$value,"* ]] || { value=""; available=false; }
+        fi ;;
     esac
 
-    dvalue=""; dmin=""; dmax=""; dstep=1
+    dvalue=""; dmin=""; dmax=""; dstep=""
     if [[ "$numeric" == true ]]; then
       if [[ "$scale" == "1" ]]; then
         dvalue="$value"; dmin="$min"; dmax="$max"
@@ -807,7 +1306,11 @@ build_settings_json() {
         [[ -n "$min" ]] && dmin=$(( (min + scale - 1) / scale ))
         [[ -n "$max" ]] && dmax=$(( max / scale ))
       fi
-      dstep=$(settings_display_step "$scale" "$dmax" "$unit")
+      if [[ -n "$step" ]]; then dstep="$step"
+      else dstep=$(settings_display_step "$scale" "$dmax" "$unit"); fi
+    else
+      # Non-numeric rows still carry a step for the QML slider (floats).
+      if [[ -n "$step" ]]; then dstep="$step"; else dstep=1; fi
     fi
 
     vtext=$(human_value "$type" "$unit" "$scale" "$disp" "$value")
@@ -822,27 +1325,61 @@ build_settings_json() {
     [[ -n "$defval"  && "$deftext"  != "$vtext" && "$available" == true ]] && canrd=true
     [[ -n "$repoval" && "$repotext" != "$vtext" && "$available" == true ]] && canrr=true
 
-    # Hyprland is asked, not the file. These controls write input.lua, and a
-    # module loaded after it that sets the same key wins: OmaSettings keeps
-    # its Keyboard and Mouse pages in hypr/omasettings.lua, loaded last. The
-    # row then showed what the file says while the session did something else.
+    # Remember dependency drivers as they pass: the dependents follow in
+    # registry order (dimInactive before dimStrength, blur before blurSpecial,
+    # layout before columnWidth).
+    case "$id" in
+      window.dimInactive) dim_inactive_val="$value" ;;
+      window.blur) blur_val="$value" ;;
+      window.layout) layout_val="$value" ;;
+    esac
+    blocked=""
+    case "$id" in
+      window.dimStrength)
+        [[ "$dim_inactive_val" != "true" ]] && blocked="Turn on Dim inactive windows to use dim strength." ;;
+      window.blurSpecial)
+        [[ "$blur_val" != "true" ]] && blocked="Turn on Blur to use the special workspace blur." ;;
+      window.columnWidth)
+        [[ "$layout_val" != "scrolling" ]] && blocked="Switch Window layout to scrolling to use column width." ;;
+    esac
+
+    # Hyprland is asked, not the file. These controls write input.lua and
+    # looknfeel.lua, and a module loaded after them that sets the same route
+    # wins: OmaSettings keeps its pages in hypr/omasettings.lua, loaded last.
     # Said only when Hyprland answers, and only when the two differ.
     lnotice=""
-    if [[ "$type" == lua-* && "$available" == true ]] && inforce=$(hypr_in_force "$path"); then
+    if [[ "$type" == lua-* && "$available" == true && -z "$blocked" ]] && inforce=$(hypr_in_force "$path" 2>/dev/null); then
       if [[ "$type" == lua-bool ]]; then
         [[ "$inforce" == 1 ]] && inforce=true
         [[ "$inforce" == 0 ]] && inforce=false
       fi
-      if [[ "$inforce" != "$value" ]]; then
-        by=$(hypr_overrider "$(lua_key_of "$path")" "$file") || by="a file loaded later"
+      # floats: "1" and "1.0" are the same value
+      if [[ "$type" == lua-float ]]; then
+        inforce=$(canon_number "$inforce" 2>/dev/null || printf '%s' "$inforce")
+        vcanon=$(canon_number "$value" 2>/dev/null || printf '%s' "$value")
+      else
+        vcanon="$value"
+      fi
+      if [[ "$inforce" != "$vcanon" ]]; then
+        by=$(hypr_overrider "$path" "$file") || by="a file loaded later"
         lnotice="In force: $(human_value "$type" "$unit" "$scale" "$disp" "$inforce") — set by $by."
+      fi
+    fi
+
+    # A per-device rule inside the same file wins for that device.
+    # Replicant never modifies hl.device rules; it only names the fact,
+    # never the private hardware.
+    if [[ -z "$lnotice" && -z "$blocked" && "$type" == lua-* && "$available" == true && -n "$file" ]]; then
+      leaf=$(lua_key_of "$path")
+      if hypr_device_override "$file" "$leaf" 2>/dev/null; then
+        lnotice="A per-device rule also sets this value and wins for that device."
       fi
     fi
 
     # A scope of off is policy, not failure, but the row must say so before the
     # person touches the control. Without this the change applies locally and the
     # save step warns afterwards, which reads as a surprise error.
-    if [[ -z "$lnotice" && "$file" != "-" && "$available" == true ]]; then
+    if [[ -z "$lnotice" && -z "$blocked" && "$file" != "-" && "$available" == true ]]; then
       scope_rel=""; scope_val=""
       scope_rel=$(rel_for_src "$file" 2>/dev/null || true)
       if [[ -n "$scope_rel" ]]; then
@@ -853,11 +1390,11 @@ build_settings_json() {
       fi
     fi
 
-    printf '%s\x1f%s\x1f%s\x1f%s\x1f%s\x1f%s\x1f%s\x1f%s\x1f%s\x1f%s\x1f%s\x1f%s\x1f%s\x1f%s\x1f%s\x1f%s\x1f%s\x1f%s\x1f%s\x1f%s\x1f%s\x1f%s\x1f%s\x1f%s\x1f%s\x1f%s\x1f%s\x1f%s\x1f%s\n' \
+    printf '%s\x1f%s\x1f%s\x1f%s\x1f%s\x1f%s\x1f%s\x1f%s\x1f%s\x1f%s\x1f%s\x1f%s\x1f%s\x1f%s\x1f%s\x1f%s\x1f%s\x1f%s\x1f%s\x1f%s\x1f%s\x1f%s\x1f%s\x1f%s\x1f%s\x1f%s\x1f%s\x1f%s\x1f%s\x1f%s\n' \
       "$id" "$group" "$label" "$type" "$unit" "$min" "$max" "$options" "$hint" "$file" \
       "$available" "$implicit" "$value" "$scale" "$disp" "$dvalue" "$dmin" "$dmax" "$dstep" \
       "$vtext" "$defval" "$deftext" "$repoval" "$repotext" "$canrd" "$canrr" "$numeric" "$boolean" \
-      "$lnotice"
+      "$lnotice" "$blocked"
   done
   } | jq -Rsc '
     def num: if . == "" then null else (tonumber? // null) end;
@@ -873,12 +1410,13 @@ build_settings_json() {
               else .[12] end),
       scale: (.[13]|num), display_unit: .[14],
       display_value: (.[15]|num), display_min: (.[16]|num),
-      display_max: (.[17]|num), display_step: ((.[18]|num) // 1),
+      display_max: (.[17]|num), display_step: (.[18]|num),
       value_text: .[19],
       default_value: .[20], default_text: .[21],
       repo_value: .[22], repo_text: .[23],
       can_revert_default: (.[24]|flag), can_revert_repo: (.[25]|flag),
-      lua_notice: (.[28] // "")
+      lua_notice: (.[28] // ""),
+      blocked_reason: (.[29] // "")
     })' | jq -c --arg lidblock "$(lid_blocked_by)" '
     # A second pass, because a notice is about how settings sit RELATIVE to each
     # other and the per-setting record cannot see its siblings.

@@ -11,14 +11,17 @@ Item {
   property var panel
   property var setting: ({})
   readonly property bool isNumber: setting.type === "number" || setting.type === "toml-int" || setting.type === "lua-int"
-  readonly property bool isFloat:  setting.type === "toml-float"
+  readonly property bool isFloat:  setting.type === "toml-float" || setting.type === "lua-float"
   readonly property bool isBool:   setting.type === "bool" || setting.type === "lua-bool"
   readonly property bool isChoice: setting.type === "enum" || setting.type === "lua-enum"
                                 || setting.type === "line-enum" || setting.type === "theme"
                                 || setting.type === "ini-enum"
   readonly property bool isLongList: srow.isChoice && (setting.options || []).length > 8
-  readonly property bool usable: setting.available === true && !panel.busy
-  readonly property string unavailableReason: setting.available !== true
+  readonly property bool isBlocked: String(setting.blocked_reason || "") !== ""
+  readonly property bool usable: setting.available === true && !panel.busy && !srow.isBlocked
+  readonly property string unavailableReason: srow.isBlocked
+      ? String(setting.blocked_reason)
+      : setting.available !== true
       ? "This setting is not available in this machine's configuration."
       : (panel.busy ? "Another Replicant operation is running." : "")
   // Customised means "not what Omarchy ships". The badge in front of the label
@@ -63,7 +66,11 @@ Item {
   // parent-height <-> child-position loop that renders the row at nothing.
   // 38 is what fits on one line at the panel's width, with the badge in the
   // glyph column that every row shares.
-  readonly property string noticeText: String(srow.setting.notice || "")
+  // A blocked control (dim strength without dim, blur special without blur,
+  // column width without the scrolling layout) explains itself here, in the
+  // same amber notice a scope-off or device override uses.
+  readonly property string noticeText: srow.isBlocked ? String(srow.setting.blocked_reason)
+                                                     : String(srow.setting.notice || "")
   readonly property int subtitleLines: srow.subtitleText.length > 38 ? 2 : 1
   // The notice is counted too, and it was not. A row carrying one rendered
   // four lines of text in the two-line height and the notice was cut in half
@@ -172,7 +179,9 @@ Item {
       }
 
       // Floats get a slider: a stepper over 0.5–2.0 in 0.05 steps would be
-      // thirty clicks from one end to the other.
+      // thirty clicks from one end to the other. The step comes from the
+      // registry (display_step), so each float moves in its own useful
+      // increments (0.05 for dim, 0.01 for scrolling width).
       Row {
         visible: srow.isFloat
         anchors.right: parent.right
@@ -190,8 +199,9 @@ Item {
           bar: panel.bar
           minimum: srow.isFloat && typeof srow.setting.min === "number" ? srow.setting.min : 0
           maximum: srow.isFloat && typeof srow.setting.max === "number" ? srow.setting.max : 1
-          step: 0.05
+          step: srow.isFloat && typeof srow.setting.display_step === "number" && srow.setting.display_step > 0 ? srow.setting.display_step : 0.05
           value: srow.isFloat && typeof srow.setting.value === "number" ? srow.setting.value : 0
+          enabled: srow.usable
           onReleased: function(v) { if (srow.usable) panel.queueSetting(srow.setting.id, Math.round(v * 100) / 100) }
         }
       }

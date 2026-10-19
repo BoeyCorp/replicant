@@ -284,3 +284,34 @@ Todo verificado contra main limpio antes de tocar (sin regresiones).
   vault con blobs huerfanaba secretos (ahora se niega, 0.38.3).
 - [x] G7 screenshots y validacion saltan en el contenedor CI sin Omarchy
   en vez de fallar. CI en verde en main.
+
+## Sesion 2026-10-19 - Settings Hyprland 0.39.0
+
+Origen: ampliar Settings de 24 a 47 ajustes sin otro almacen ni cambios de
+formato. Todo verificado contra main limpio antes de tocar.
+
+- [x] Editor Lua por rutas completas (`input:scroll_factor` frente a
+  `input:touchpad:scroll_factor`): distingue hojas repetidas como
+  `scroll_factor` y `enabled`, ignora comentarios y no evalua codigo Lua.
+- [x] Bloque gestionado al final de `hypr/input.lua` y `hypr/looknfeel.lua`:
+  actualizacion determinista e idempotente, conserva todos los bytes fuera,
+  rechaza marcadores duplicados o danados sin modificar el archivo, crea
+  `.bak.<epoch>`, valida con `hyprctl reload` + `configerrors`, revierte ante
+  un error nuevo y rechaza sin afirmar aplicado si Hyprland no esta.
+- [x] Registro con 47 ajustes en Keyboard, Mouse & pointer, Touchpad y
+  Windows; siete identificadores existentes intactos; `accel_profile` solo
+  adaptive/flat; layouts dwindle, master, scrolling y monocle; limites
+  oficiales de Hyprland 0.56.2; dependencias dim/blur/scrolling con
+  `blocked_reason`; aviso de reglas `hl.device` sin nombres privados.
+- [x] Panel usa el paso numerico recibido y explica dependencias
+  desactivadas; `settings --json` anade `blocked_reason` sin quitar campos;
+  `set` acepta nuevos identificadores y decimales.
+- [x] Validacion completa: `./tests/run-all.sh` (1153 checks en verde; lo unico
+  en rojo son las 8 comparaciones de pixeles G7, que fallan identico en main
+  limpio en esta maquina: pila de renderizado ambiental, no regresion),
+  `test-settings.sh` 293/293, `test-settings-save.sh` 35/35, `qmllint`
+  limpio, `omarchy plugin validate .` limpio, `bench-status --check` dentro
+  de presupuesto (0.08s), capturas de revision renderizadas y pestaña
+  Settings revisada (8 grupos, 47 ajustes), prueba real de lectura en esta
+  maquina (raton, touchpad, esquinas, gaps, blur, layout) y `hyprctl
+  configerrors` limpio.
