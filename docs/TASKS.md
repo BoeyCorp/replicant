@@ -107,6 +107,12 @@ mixed release history with active work. This plan addresses those verified gaps 
 - Proposal: add a compact, keyboard-accessible section picker for the visible Restore cards. Before, a person who opens Restore to undo a backup must scroll or tab past earlier cards. After, the person picks “Undo a restore” and reaches that card directly. Target: reach any visible Restore section with one navigation action, then activate its control with one action. Test each visible card, hidden-card changes, keyboard focus, and return from a preview.
 - Commit: this commit (`docs: propose Restore section navigation`).
 
+## Final verification (2026-10-21)
+
+- `tests/run-all.sh` passed gates G0 through G8, then exited 1 because `status.brief` measured 120 ms against its 100 ms budget. The isolated `tests/bench-status.sh --check` rerun passed at 100 ms. Treat the performance result as borderline, not as a clean full-suite pass.
+- `omarchy plugin validate .`, QML lint, `git diff --check`, and `tests/check-version-bump.sh --base origin/main` passed. No version bump is required because shipped code did not change.
+- G7 skipped the Tokyo Night screenshot check because `/usr/share/omarchy/themes/tokyo-night` is unavailable. Fixed offscreen screenshots passed. F02 remains blocked on live lifecycle and graphical Settings checks.
+
 ## Next action
 
 F01, F03, F04, and F05 are complete. F02 remains blocked until a disposable graphical Omarchy session is available.
