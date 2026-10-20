@@ -3,6 +3,101 @@
 Complete one small, verifiable task at a time. When a task is complete, update its checkbox and
 `ROADMAP.md` in the same change.
 
+## Functional and organization improvements (2026-10-20)
+
+The plan started from version 0.41.2 on `main` at `fc49856`, with a clean worktree. Replicant
+manages Omarchy configuration and software across machines, with a
+Quickshell panel and a Bash CLI. The panel has Restore, Settings, Configs, and Machines tabs. The
+CLI uses a single repository format and transaction journals.
+
+The current product has 100 Settings controls, structured editors, profile-aware workspace and
+display controls, and software reconciliation. The roadmap already calls for better Restore
+evidence. The remaining records also identify disposable-session checks and human interaction
+review. `TASKS.md` contains release history and active work in one long file, while the roadmap
+still has stale current items. This plan addresses those verified gaps first.
+
+### F01. Reconcile current verification records
+
+- Objective: make the remaining release and usability evidence accurate and easy to resume.
+- Tasks:
+  - [x] Compare the open usability checklist with the recorded live placement, restart, and input evidence.
+  - [x] Record which mouse, keyboard, focus, contrast, and shell-restart checks remain possible.
+  - [x] Update `TASKS.md` and `ROADMAP.md` from the resulting evidence.
+- Dependencies: none.
+- Acceptance: every remaining item has a status, exact evidence or a stated environment blocker, and one next action.
+- Required checks: compare every claim with the existing task records and Git state; run `git diff --check`.
+- Risks: the active session lock may still prevent a shell restart. Do not treat a blocked restart as a pass.
+- State: Completed.
+- Evidence: placement and moves passed in all three bar sections. A shell restart preserved the
+  saved layout, and a real panel capture was reviewed. Mouse, keyboard, focus, and subjective
+  contrast checks remain open for human review. The later release lifecycle could not restart the
+  shell because Omarchy reported `solitaryBlockedBy: LOCK`. This phase reconciled records only; it
+  did not repeat those live checks.
+- Commit: this commit (`docs: reconcile verification records`).
+
+### F02. Verify Settings in a disposable session
+
+- Objective: close the live verification gap for Settings hardening and release behavior.
+- Tasks:
+  - [ ] Use a disposable Omarchy session, separate from the active user plugin and private data.
+  - [ ] Exercise the documented install, enable, shell restart, and removal lifecycle.
+  - [ ] Verify real setting reads, edits, resets, reload errors, rollback, and decimal input.
+  - [ ] Record commands, results, and any environment limitation in the task records.
+- Dependencies: F01 records the current evidence and environment limits.
+- Acceptance: every lifecycle and Settings scenario has a result; failures retain exact evidence and remain open.
+- Required checks: the lifecycle and Settings scenarios listed in `docs/settings-hardening-plan.md`.
+- Risks: a disposable Omarchy session may not be available. Keep this phase open until the environment exists.
+- State: Planned.
+- Commit: not authorized in plan mode.
+
+### F03. Improve Restore decision evidence
+
+- Objective: help users see which machine supplies a restore and what the selected action changes.
+- Tasks:
+  - [ ] Review the restore preview and the Restore tab for source, destination, item count, and skipped-item reasons.
+  - [ ] Define one compact summary for each restore action and show item details before confirmation.
+  - [ ] Keep secret values out of previews and status output.
+  - [ ] Preserve the repository format and existing scope behavior.
+- Dependencies: F01 establishes the current evidence and verification limits.
+- Acceptance: each restore preview names its source and target, reports affected and skipped items, and never prints secret content.
+- Required checks: restore, scope, secret-redaction, and QML interaction suites; plugin validation and QML lint for changed QML.
+- Risks: a summary can disagree with the transaction if it uses a separate source of truth. Derive it from the existing preview data.
+- State: Planned.
+- Commit: not authorized in plan mode.
+
+### F04. Separate active work from project history
+
+- Objective: make the task record and roadmap clear for the next contributor.
+- Tasks:
+  - [ ] Keep current phases, open risks, and the next action in `docs/TASKS.md`.
+  - [ ] Move completed dated session reports and closed release checklists into a linked history document.
+  - [ ] Align `docs/ROADMAP.md` with the active and completed records.
+  - [ ] Keep repository instructions and the private data repository boundary intact.
+- Dependencies: F01 resolves which current items remain open.
+- Acceptance: `TASKS.md` names only active work and its next action; archived material remains linked and unchanged in meaning; roadmap status matches both.
+- Required checks: compare every moved checklist and evidence block against Git history; run `git diff --check`.
+- Risks: moving records can lose release evidence or make old phase references stale. Preserve phase names, commits, and links.
+- State: Planned.
+- Commit: not authorized in plan mode.
+
+### F05. Select the next product organization improvement
+
+- Objective: choose one measurable panel improvement after the current Restore work is reviewed.
+- Tasks:
+  - [ ] Review how users find pending work across Restore, Settings, Configs, and Machines.
+  - [ ] Use existing test journeys and panel structure to identify one repeated navigation or status problem.
+  - [ ] Write a bounded proposal with a before-and-after journey and acceptance checks.
+- Dependencies: F03 and F04.
+- Acceptance: the proposal names one observed problem, one affected panel path, one outcome metric, and focused checks. Do not add a feature from speculation alone.
+- Required checks: inspect the affected panel journey and existing QML tests; no product changes in this phase.
+- Risks: broad redesign can increase panel complexity. Keep the proposal to one user journey.
+- State: Planned.
+- Commit: not authorized in plan mode.
+
+## Next action
+
+Start with F02. Run the Settings lifecycle only in a disposable Omarchy session.
+
 ## Update and refresh review after 0.41.1
 
 - [x] Name the configured update source and report divergent Git history.
@@ -184,7 +279,7 @@ Current evidence for the open task:
   - Document keys and migration recovery data in the trace inventory.
   - Replace the fixed “five suites” count with wording derived from `tests/run-all.sh`.
   - Document the 0.14 CLI removals and GitHub API requirement.
-  - Leave the current TASKS and ROADMAP validation item open until its live checks exist.
+  - [x] Leave the current TASKS and ROADMAP validation item open until its live checks exist.
 
 Completed 2026-09-28. Updated the incoming-row Restore wording, removed the obsolete 0.5 note,
 documented the v3 entry locations, added the current shell modules and recovery paths, described

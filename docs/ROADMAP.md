@@ -20,13 +20,19 @@
   selected package source, opens installs visibly, keeps file modes, improves
   rollback, and makes new command parsers fail closed. Decimal settings use
   a text field with a unit label. Qualified color references restore the theme.
-- Complete live installation and placement verification for the usability patch.
-- Record the remaining shell restart and interaction evidence in `TASKS.md`.
+- Live install and placement checks passed for left, center, and right. A shell
+  restart preserved the saved layout. Human input review remains open.
+- The release lifecycle restart remains blocked by Omarchy's session lock.
+  See `docs/settings-hardening-plan.md` for its scope.
+- Disposable-session verification for Settings hardening remains open.
 
 ## Next
 
-- Improve restore evidence without expanding the public repository format or scope CLI.
-- Complete disposable-session verification for the Settings hardening release.
+- F01: reconcile current verification records in `docs/TASKS.md`.
+- F02: verify Settings in a disposable Omarchy session.
+- F03: improve Restore decision evidence without changing the repository format or scope CLI.
+- F04: separate active work from project history in the task records.
+- F05: select one measured panel organization improvement after F03 and F04.
 
 ## Portable controls expansion (0.41.0)
 
