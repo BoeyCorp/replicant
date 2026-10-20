@@ -325,4 +325,19 @@ else
   check "no vault here, index checks need one" "true" "true"
 fi
 
+section "deferred settings answer every row without the payload"
+# Initial load: the full payload carries the settings. Deferred load: the same
+# rows, an empty settings array, and a marker the panel reads to fetch them on
+# demand. Cache reuse and retry live in the panel session (tst_replicant.qml
+# covers the merge and parse helpers); the contract here is what the CLI emits.
+full_state=$(core_status --json --no-fetch 2>/dev/null | tail -n1)
+check "initial load carries settings" "true" "$(jq -r '(.settings | length) > 0' <<<"$full_state")"
+deferred_state=$(core_status --json --no-fetch --defer-settings 2>/dev/null | tail -n1)
+check "deferred load is valid JSON" "0" "$(jq empty <<<"$deferred_state" >/dev/null 2>&1; echo $?)"
+check "…marks the payload deferred" "true" "$(jq -r '.settings_deferred' <<<"$deferred_state")"
+check "…with no settings in it" "0" "$(jq -r '.settings | length' <<<"$deferred_state")"
+check "…and the same entry rows" "$(jq -r '.entries | length' <<<"$full_state")" "$(jq -r '.entries | length' <<<"$deferred_state")"
+check "deferring combines with brief" "true" "$(core_status --json --brief --defer-settings 2>/dev/null | tail -n1 | jq -r '.brief')"
+check "deferring answers uninitialized honestly" "false" "$(REPO_DIR="$TMP/no-repo-here" core_status --json --defer-settings 2>/dev/null | tail -n1 | jq -r '.initialized')"
+
 summary

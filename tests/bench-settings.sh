@@ -9,9 +9,10 @@ ROOT="$(cd -- "$HERE/.." && pwd)"
 CORE="$ROOT/bin/replicant-core.sh"
 
 RUNS="${REPLICANT_SETTINGS_RUNS:-5}"
-# This is the first initialized fixture measurement. Keep it explicit and
-# conservative until a CI baseline exists across supported runners.
-MAX_MEDIAN_MS=8000
+# Calibrated for the 100-setting catalog (I4): the payload builds one row per
+# setting, so its cost scales with the catalog, not with the machine. The
+# 8000 ms budget fit 76 settings; 100 need proportionally more.
+MAX_MEDIAN_MS=11000
 [[ "$RUNS" =~ ^[1-9][0-9]*$ ]] || { echo "RUNS must be a positive integer" >&2; exit 2; }
 
 BENCH_TMP="$(mktemp -d "${TMPDIR:-/tmp}/replicant-settings-bench-XXXXXX")"

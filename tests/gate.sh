@@ -244,6 +244,8 @@ gate_g5() {
   if "$HERE/test-bulk-vault.sh" >/dev/null 2>&1; then ok "bulk vault suite passes"; else bad "bulk vault suite fails"; fi
   if "$HERE/test-settings.sh" >/dev/null 2>&1; then ok "settings unit suite passes"; else bad "settings unit suite fails"; fi
   if "$HERE/test-settings-save.sh" >/dev/null 2>&1; then ok "settings persistence suite passes"; else bad "settings persistence suite fails"; fi
+  if "$HERE/test-structured.sh" >/dev/null 2>&1; then ok "structured editors suite passes"; else bad "structured editors suite fails"; fi
+  if "$HERE/test-desktop.sh" >/dev/null 2>&1; then ok "desktop editors suite passes"; else bad "desktop editors suite fails"; fi
 }
 gate_g6() {
   section "G6 secret restore gate"
@@ -359,6 +361,7 @@ gate_g8() {
     bad "stray test artifacts remain"
   fi
   if "$HERE/test-g8.sh" >/dev/null 2>&1; then ok "architecture and documentation suite passes"; else bad "architecture and documentation suite fails"; fi
+  if "$HERE/test-reconcile.sh" >/dev/null 2>&1; then ok "reconcile suite passes"; else bad "reconcile suite fails"; fi
   if "$HERE/test-bulk-vault.sh" >/dev/null 2>&1; then ok "bulk vault suite still passes"; else bad "bulk vault suite fails"; fi
   if "$HERE/test-transaction.sh" >/dev/null 2>&1; then ok "transaction suite still passes"; else bad "transaction suite fails"; fi
 }

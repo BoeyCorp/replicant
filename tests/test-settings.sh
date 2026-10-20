@@ -531,19 +531,19 @@ for entry in "${SETTINGS[@]}"; do
   check_true "hint fits: $id" test "${#h}" -le "$HINT_MAX"
 done
 
-section "47 settings in their new groups"
-check "47 settings total" "47" "${#SETTINGS[@]}"
-check "Keyboard holds repeat, delay, layout and numlock" "4" "$(printf '%s\n' "${SETTINGS[@]}" | grep -c '^[^|]*|Keyboard|')"
-check "Mouse & pointer holds five" "5" "$(printf '%s\n' "${SETTINGS[@]}" | grep -c '^[^|]*|Mouse & pointer|')"
+section "100 settings in their new groups"
+check "100 settings total" "100" "${#SETTINGS[@]}"
+check "Keyboard holds repeat, delay, layout, numlock and variants" "6" "$(printf '%s\n' "${SETTINGS[@]}" | grep -c '^[^|]*|Keyboard|')"
+check "Mouse & pointer holds eight" "8" "$(printf '%s\n' "${SETTINGS[@]}" | grep -c '^[^|]*|Mouse & pointer|')"
 check "Touchpad holds seven" "7" "$(printf '%s\n' "${SETTINGS[@]}" | grep -c '^[^|]*|Touchpad|')"
-check "Windows holds fourteen" "14" "$(printf '%s\n' "${SETTINGS[@]}" | grep -c '^[^|]*|Windows|')"
+check "Windows holds sixty" "60" "$(printf '%s\n' "${SETTINGS[@]}" | grep -c '^[^|]*|Windows|')"
 check "seven existing ids are kept" "7" "$(for k in input.repeatRate input.repeatDelay input.kbLayout input.numlock input.naturalScroll input.tapToClick input.disableWhileTyping; do find_setting "$k" >/dev/null 2>&1 && echo kept; done | wc -l)"
 check "no Input group remains" "0" "$(printf '%s\n' "${SETTINGS[@]}" | grep -c '|Input|')"
 for g in "Keyboard" "Mouse & pointer" "Touchpad" "Windows"; do
   check_true "group declared: $g" grep -q "^$g|" < <(printf '%s\n' "${SETTING_GROUPS[@]}")
 done
 sj=$(build_settings_json)
-check "panel sees 47 rows on a laptop" "47" "$(printf '%s' "$sj" | jq 'length')"
+check "panel sees 100 rows on a laptop" "100" "$(printf '%s' "$sj" | jq 'length')"
 check "every row carries blocked_reason" "0" "$(printf '%s' "$sj" | jq '[.[] | select(has("blocked_reason") | not)] | length')"
 # No existing field was removed: id, group, label, type, value, available,
 # value_text, default_text, repo_text, can_revert_default, notice all stay.
@@ -918,5 +918,188 @@ CLI="$HERE/../bin/replicant"
 check "CLI set accepts a decimal" "0" "$rc"
 check "CLI value lands live" "0.2" "$(get_setting_value input.sensitivity)"
 check "CLI value reaches the repo" "0.2" "$(setting_repo_value input.sensitivity)"
+
+section "window and effect settings map to verified Hyprland routes"
+# Every route below answers on Hyprland 0.56.2 getoption and carries the wiki
+# bound. border-inside has no 0.56.2 route and animation speed has no scalar
+# route: both stay out, documented in TASKS.md.
+rm -f "$HYPRCTL_OPTIONS"
+sj3=$(build_settings_json)
+for nid in window.floatGaps window.workspaceGaps window.roundingPower window.activeOpacity window.fullscreenOpacity window.dimSpecial window.dimAround window.dimModal window.animWrap window.blurSize window.blurPasses window.blurNoise window.blurContrast window.blurBrightness window.blurVibrancy window.blurVibrancyDarkness window.blurPopups window.blurXray window.shadowRange window.shadowPower window.shadowScale window.shadowSharp window.glowEnabled window.glowRange window.glowPower window.snapEnabled window.snapWindowGap window.snapMonitorGap window.snapBorderOverlap; do
+  check "route $nid is present" "$nid" "$(printf '%s' "$sj3" | jq -r --arg id "$nid" '[.[] | select(.id==$id)][0].id')"
+done
+check "float gaps file to looknfeel" "$HOME/.config/hypr/looknfeel.lua" "$(printf '%s' "$sj3" | jq -r '[.[] | select(.id=="window.floatGaps")][0].file')"
+check "float gaps domain is Look and feel" "Look & feel" "$(printf '%s' "$sj3" | jq -r '[.[] | select(.id=="window.floatGaps")][0].domain')"
+check "float gaps owner is its Configs row" "hypr/looknfeel.lua" "$(printf '%s' "$sj3" | jq -r '[.[] | select(.id=="window.floatGaps")][0].entry')"
+check "float gaps apply action" "hyprctl reload" "$(printf '%s' "$sj3" | jq -r '[.[] | select(.id=="window.floatGaps")][0].apply_action')"
+check "rounding curve bounds are the wiki range" "2,10" "$(printf '%s' "$sj3" | jq -r '[.[] | select(.id=="window.roundingPower")][0] | "\(.min),\(.max)"')"
+check "shadow power bounds are the wiki range" "1,4" "$(printf '%s' "$sj3" | jq -r '[.[] | select(.id=="window.shadowPower")][0] | "\(.min),\(.max)"')"
+check "glow power route is render_power" "decoration:glow:render_power" "$(setting_field "$(find_setting window.glowPower)" 4)"
+set_setting_value window.blurSize 10 >/dev/null 2>&1; rc=$?
+check "first effect write applies" "0" "$rc"
+set_setting_value window.blurPasses 3 >/dev/null 2>&1; rc=$?
+check "consecutive write applies too" "0" "$rc"
+check "both values land" "10,3" "$(get_setting_value window.blurSize),$(get_setting_value window.blurPasses)"
+check_false "an invalid type is refused" set_setting_value window.blurSize abc
+check_false "a bound violation is refused" set_setting_value window.shadowPower 9
+check_false "a curve violation is refused" set_setting_value window.roundingPower 99
+set_setting_value window.blur false >/dev/null 2>&1
+sj3=$(build_settings_json)
+check "a blur child is blocked while blur is off" "true" "$(printf '%s' "$sj3" | jq -r '[.[] | select(.id=="window.blurSize")][0].blocked_reason != ""')"
+check "a shadow child is blocked while shadows are off" "true" "$(printf '%s' "$sj3" | jq -r '[.[] | select(.id=="window.shadowRange")][0].blocked_reason != ""')"
+check "a glow child is blocked while glow is off" "true" "$(printf '%s' "$sj3" | jq -r '[.[] | select(.id=="window.glowRange")][0].blocked_reason != ""')"
+check "a snap child is blocked while snapping is off" "true" "$(printf '%s' "$sj3" | jq -r '[.[] | select(.id=="window.snapWindowGap")][0].blocked_reason != ""')"
+set_setting_value window.blur true >/dev/null 2>&1
+set_setting_value window.shadows true >/dev/null 2>&1
+set_setting_value window.glowEnabled true >/dev/null 2>&1
+set_setting_value window.snapEnabled true >/dev/null 2>&1
+sj3=$(build_settings_json)
+check "enabling blur unblocks its children" "" "$(printf '%s' "$sj3" | jq -r '[.[] | select(.id=="window.blurSize")][0].blocked_reason')"
+check "enabling shadows unblocks their children" "" "$(printf '%s' "$sj3" | jq -r '[.[] | select(.id=="window.shadowRange")][0].blocked_reason')"
+head_before=$(git -C "$REPO_DIR" rev-parse HEAD 2>/dev/null || echo none)
+HYPRCTL_FAIL_RELOAD=1 set_setting_value window.floatGaps 7 >/dev/null 2>&1; rc=$?
+check "reload failure reports failure" "1" "$rc"
+check "reload failure restores the file" "" "$(lua_file_value "$HOME/.config/hypr/looknfeel.lua" "general:float_gaps" 2>/dev/null || true)"
+check "reload failure commits nothing" "$head_before" "$(git -C "$REPO_DIR" rev-parse HEAD 2>/dev/null || echo none)"
+unset HYPRCTL_FAIL_RELOAD
+printf 'error: old news\n' > "$TMP/cfgerr"
+HYPRCTL_CONFIGERRORS="$TMP/cfgerr" set_setting_value window.floatGaps 7 >/dev/null 2>&1; rc=$?
+check "a pre-existing error is not a new one" "0" "$rc"
+unset HYPRCTL_CONFIGERRORS
+
+section "portable scalar settings: dwindle, master, group bar, focus, font, anchor"
+# Every route below answers 0.56.2 getoption (verified with hyprctl on the
+# live compositor). scrolling fullscreen-one-column has no 0.56.2 route and
+# group colors carry no portable scalar, so both stay out (see TASKS.md).
+sj4=$(build_settings_json)
+for nid in window.dwindleBias window.dwindleForceSplit window.dwindlePreserveSplit window.dwindleSmartSplit window.dwindleSplitMultiplier window.masterFactor window.masterNewStatus window.masterOrientation window.groupbarEnabled window.groupbarHeight window.groupbarIndicatorGap window.groupbarIndicatorHeight window.groupbarTitles window.groupbarRounding window.groupbarGradients window.groupbarStacked window.groupbarFontSize input.kbVariant input.kbOptions input.followMouse input.focusOnClose input.floatSwitchFocus font.mono bar.centerAnchor; do
+  check "route $nid is present" "$nid" "$(printf '%s' "$sj4" | jq -r --arg id "$nid" '[.[] | select(.id==$id)][0].id')"
+done
+check "dwindle bias bounds are 0-1" "0,1" "$(printf '%s' "$sj4" | jq -r '[.[] | select(.id=="window.dwindleBias")][0] | "\(.min),\(.max)"')"
+check "force split bounds are 0-2" "0,2" "$(printf '%s' "$sj4" | jq -r '[.[] | select(.id=="window.dwindleForceSplit")][0] | "\(.min),\(.max)"')"
+check "master factor bounds are 0-1" "0,1" "$(printf '%s' "$sj4" | jq -r '[.[] | select(.id=="window.masterFactor")][0] | "\(.min),\(.max)"')"
+check "follow mouse bounds are 0-3" "0,3" "$(printf '%s' "$sj4" | jq -r '[.[] | select(.id=="input.followMouse")][0] | "\(.min),\(.max)"')"
+check "groupbar height bounds are wiki 0-64" "0,64" "$(printf '%s' "$sj4" | jq -r '[.[] | select(.id=="window.groupbarHeight")][0] | "\(.min),\(.max)"')"
+check "groupbar font bounds are wiki 2-64" "2,64" "$(printf '%s' "$sj4" | jq -r '[.[] | select(.id=="window.groupbarFontSize")][0] | "\(.min),\(.max)"')"
+check "new status offers the three portable words" "master,slave,inherit" "$(printf '%s' "$sj4" | jq -r '[.[] | select(.id=="window.masterNewStatus")][0].options | join(",")')"
+check "orientation offers the five placements" "left,right,top,bottom,center" "$(printf '%s' "$sj4" | jq -r '[.[] | select(.id=="window.masterOrientation")][0].options | join(",")')"
+check "dwindle settings file to looknfeel" "$HOME/.config/hypr/looknfeel.lua" "$(printf '%s' "$sj4" | jq -r '[.[] | select(.id=="window.dwindleBias")][0].file')"
+check "dwindle settings domain is Look and feel" "Look & feel" "$(printf '%s' "$sj4" | jq -r '[.[] | select(.id=="window.dwindleBias")][0].domain')"
+check "dwindle owner is its Configs row" "hypr/looknfeel.lua" "$(printf '%s' "$sj4" | jq -r '[.[] | select(.id=="window.dwindleBias")][0].entry')"
+check "variant file is input" "$HOME/.config/hypr/input.lua" "$(printf '%s' "$sj4" | jq -r '[.[] | select(.id=="input.kbVariant")][0].file')"
+check "variant domain is Input" "Input" "$(printf '%s' "$sj4" | jq -r '[.[] | select(.id=="input.kbVariant")][0].domain')"
+check "anchor file is shell" "$HOME/.config/omarchy/shell.json" "$(printf '%s' "$sj4" | jq -r '[.[] | select(.id=="bar.centerAnchor")][0].file')"
+check "anchor owner is its Configs row" "omarchy/shell.json" "$(printf '%s' "$sj4" | jq -r '[.[] | select(.id=="bar.centerAnchor")][0].entry')"
+check "font has a tracked owner" "fontconfig/fonts.conf" "$(setting_save_id font.mono)"
+
+section "portable scalars write, refuse and roll back"
+set_setting_value window.dwindleForceSplit 1 >/dev/null 2>&1; rc=$?
+check "dwindle int writes" "0" "$rc"
+check "dwindle int lands" "1" "$(get_setting_value window.dwindleForceSplit)"
+set_setting_value window.dwindleSplitMultiplier 1.5 >/dev/null 2>&1; rc=$?
+check "dwindle float writes" "0" "$rc"
+check "dwindle float lands" "1.5" "$(get_setting_value window.dwindleSplitMultiplier)"
+set_setting_value window.masterFactor 0.6 >/dev/null 2>&1; rc=$?
+check "master factor lands" "0.6" "$(get_setting_value window.masterFactor)"
+set_setting_value window.masterNewStatus inherit >/dev/null 2>&1; rc=$?
+check "master status lands" "inherit" "$(get_setting_value window.masterNewStatus)"
+set_setting_value window.groupbarEnabled true >/dev/null 2>&1; rc=$?
+check "groupbar enables" "0" "$rc"
+set_setting_value window.groupbarHeight 20 >/dev/null 2>&1; rc=$?
+check "groupbar height lands" "20" "$(get_setting_value window.groupbarHeight)"
+set_setting_value input.followMouse 2 >/dev/null 2>&1; rc=$?
+check "focus policy lands" "2" "$(get_setting_value input.followMouse)"
+set_setting_value input.kbVariant intl >/dev/null 2>&1; rc=$?
+check "variant lands" "intl" "$(get_setting_value input.kbVariant)"
+set_setting_value input.kbOptions compose:caps >/dev/null 2>&1; rc=$?
+check "options land" "compose:caps" "$(get_setting_value input.kbOptions)"
+set_setting_value input.kbVariant "" >/dev/null 2>&1; rc=$?
+check "empty variant means none" "0" "$rc"
+set_setting_value bar.centerAnchor omarchy.menu >/dev/null 2>&1; rc=$?
+check "anchor lands" "omarchy.menu" "$(get_setting_value bar.centerAnchor)"
+check_false "bias above 1 refused" set_setting_value window.dwindleBias 5
+check_false "force split above 2 refused" set_setting_value window.dwindleForceSplit 9
+check_false "multiplier above 4 refused" set_setting_value window.dwindleSplitMultiplier 99
+check_false "factor above 1 refused" set_setting_value window.masterFactor 2
+check_false "unknown status refused" set_setting_value window.masterNewStatus floating
+check_false "unknown orientation refused" set_setting_value window.masterOrientation diagonal
+check_false "follow mouse above 3 refused" set_setting_value input.followMouse 9
+check_false "options reject shell metacharacters" set_setting_value input.kbOptions 'a;b'
+check_false "options reject spaces" set_setting_value input.kbOptions 'a b'
+check_false "anchor rejects empty" set_setting_value bar.centerAnchor ''
+check_false "anchor rejects spaces" set_setting_value bar.centerAnchor 'my widget'
+check_contains "dwindle table renders" 'dwindle = {' "$(cat "$HOME/.config/hypr/looknfeel.lua")"
+check_contains "master table renders" 'master = {' "$(cat "$HOME/.config/hypr/looknfeel.lua")"
+check_contains "group table renders" 'groupbar = {' "$(cat "$HOME/.config/hypr/looknfeel.lua")"
+cp "$HOME/.config/hypr/looknfeel.lua" /tmp/replicant-look-once.lua
+set_setting_value window.groupbarHeight 20 >/dev/null 2>&1
+check_true "repeat scalar update is idempotent" cmp -s /tmp/replicant-look-once.lua "$HOME/.config/hypr/looknfeel.lua"
+head_before=$(git -C "$REPO_DIR" rev-parse HEAD 2>/dev/null || echo none)
+HYPRCTL_FAIL_RELOAD=1 set_setting_value window.dwindleBias 1 >/dev/null 2>&1; rc=$?
+check "scalar reload failure reports failure" "1" "$rc"
+check "scalar reload failure restores the file" "" "$(lua_file_value "$HOME/.config/hypr/looknfeel.lua" "dwindle:split_bias" 2>/dev/null || true)"
+check "scalar reload failure commits nothing" "$head_before" "$(git -C "$REPO_DIR" rev-parse HEAD 2>/dev/null || echo none)"
+unset HYPRCTL_FAIL_RELOAD
+
+section "layout and group dependencies disable their dependents"
+set_setting_value window.layout dwindle >/dev/null 2>&1
+set_setting_value window.groupbarEnabled true >/dev/null 2>&1
+sj4=$(build_settings_json)
+check "dwindle frees on dwindle" "" "$(printf '%s' "$sj4" | jq -r '[.[] | select(.id=="window.dwindleBias")][0].blocked_reason')"
+check "master blocked without master" "Switch Window layout to master to use this control." "$(printf '%s' "$sj4" | jq -r '[.[] | select(.id=="window.masterFactor")][0].blocked_reason')"
+set_setting_value window.layout master >/dev/null 2>&1
+sj4=$(build_settings_json)
+check "master frees on master" "" "$(printf '%s' "$sj4" | jq -r '[.[] | select(.id=="window.masterFactor")][0].blocked_reason')"
+check "dwindle blocked without dwindle" "Switch Window layout to dwindle to use this control." "$(printf '%s' "$sj4" | jq -r '[.[] | select(.id=="window.dwindleBias")][0].blocked_reason')"
+set_setting_value window.groupbarEnabled false >/dev/null 2>&1
+sj4=$(build_settings_json)
+check "group height blocked without group bar" "Turn on Group bar to use this group control." "$(printf '%s' "$sj4" | jq -r '[.[] | select(.id=="window.groupbarHeight")][0].blocked_reason')"
+set_setting_value window.groupbarEnabled true >/dev/null 2>&1
+set_setting_value window.layout dwindle >/dev/null 2>&1
+sj4=$(build_settings_json)
+check "group height frees with group bar" "" "$(printf '%s' "$sj4" | jq -r '[.[] | select(.id=="window.groupbarHeight")][0].blocked_reason')"
+
+section "the active font through the official Omarchy command"
+export REPLICANT_FONT_CURRENT="$TMP/font-current"
+printf 'JetBrainsMono Nerd Font\n' > "$REPLICANT_FONT_CURRENT"
+cat > "$TMP/fakebin/omarchy" <<'EOF'
+#!/bin/bash
+if [[ "$1" == "font" ]]; then
+  case "$2" in
+    current) cat "$REPLICANT_FONT_CURRENT" 2>/dev/null || echo "JetBrainsMono Nerd Font" ;;
+    list) printf 'JetBrainsMono Nerd Font\nCaskaydiaMono Nerd Font\nFira Mono\n' ;;
+    set)
+      printf '%s\n' "$3" > "$REPLICANT_FONT_CURRENT"
+      mkdir -p "$HOME/.config/fontconfig"
+      cat > "$HOME/.config/fontconfig/fonts.conf" <<XML
+<?xml version="1.0"?>
+<!DOCTYPE fontconfig SYSTEM "fonts.dtd">
+<fontconfig>
+  <match target="pattern">
+    <test name="family" qual="any">
+      <string>monospace</string>
+    </test>
+    <edit name="family" mode="prepend_first" binding="strong">
+      <string>$3</string>
+    </edit>
+  </match>
+</fontconfig>
+XML
+      exit 0 ;;
+  esac
+  exit 0
+fi
+exec /usr/share/omarchy/bin/omarchy "$@"
+EOF
+chmod +x "$TMP/fakebin/omarchy"
+check "font reads the current family" "JetBrainsMono Nerd Font" "$(get_setting_value font.mono)"
+set_setting_value font.mono "Fira Mono" >/dev/null 2>&1; rc=$?
+check "font set applies" "0" "$rc"
+check "font lands" "Fira Mono" "$(get_setting_value font.mono)"
+check "font options list families" "1" "$(setting_options "$(find_setting font.mono)" | tr ',' '\n' | grep -cx 'Fira Mono')"
+check_false "unknown family refused" set_setting_value font.mono "Not A Font"
+core_save --id fontconfig/fonts.conf -m "test font" >/dev/null 2>&1; rc=$?
+check "font save commits its owner" "0" "$rc"
+check "font repo carries the family" "Fira Mono" "$(setting_repo_value font.mono)"
 
 summary

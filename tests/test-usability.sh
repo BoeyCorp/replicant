@@ -138,6 +138,24 @@ check_true "keyboard help loads shortcuts on demand" grep -qF 'if (root.keyboard
 check_true "deferred errors offer a retry" grep -qF 'panel.suggestError !== ""' "$ROOT/components/AddFilesCard.qml"
 check_true "restore history has an empty state" grep -qF 'No restore backups exist.' "$ROOT/components/RestoreTab.qml"
 
+section "settings domains and manual apply actions"
+check_true "settings group into five domains without a new tab" \
+  grep -qF 'function groupSettingsByDomain(groups)' "$ROOT/replicant.js"
+check_true "…Look & feel first" grep -qF '"Look & feel", "Input", "Desktop", "Power", "Defaults"' "$ROOT/replicant.js"
+check_true "the Settings tab renders domain sections" \
+  grep -qF 'panel.settingDomains' "$ROOT/components/SettingsTab.qml"
+check_true "every setting links to its Configs owner" \
+  grep -qF 'panel.showOwnerInConfigs' "$ROOT/components/SettingRow.qml"
+check_true "the manual apply section names three actions" \
+  grep -qF 'Restart shell' "$ROOT/components/SettingsTab.qml"
+check_true "…reload Hyprland" grep -qF 'Reload Hyprland' "$ROOT/components/SettingsTab.qml"
+check_true "…and restart terminals" grep -qF 'Restart terminals' "$ROOT/components/SettingsTab.qml"
+check_true "apply actions disable while one runs" \
+  grep -qF 'panel.applyBusy' "$ROOT/components/SettingsTab.qml"
+check_true "only the shell restart asks first" \
+  grep -qF 'ask("apply-shell"' "$PANEL"
+check_true "a failed apply says so" grep -qF '"apply-shell"' "$PANEL"
+
 section "GitHub API auth and Git transport are separate"
 check_false "the panel does not call API authentication HTTPS" grep -qF 'GitHub HTTPS' <<<"$panel_code"
 check_true "the panel names GitHub API authentication" grep -qF 'GitHub API:' <<<"$panel_code"

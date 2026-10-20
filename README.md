@@ -201,10 +201,17 @@ A plugin with a settings file of its own, `~/.config/omarchy/<name>.json`, also 
   machine's work.
 - **It says whether a save reached GitHub.** If another machine pushed first, the save says so and
   tells you to pull.
-- **47 settings from the panel**, in units that people use: the lock screen is *10 min*, not *600*.
-  Keyboard, mouse, touchpad and windows live in their own groups: repeat rate
-  and layout, pointer sensitivity and acceleration, tap-to-click and scroll
-  speed, corners, gaps, borders, layout, dim, blur, shadows and scrolling width.
+- **100 settings from the panel**, in units that people use: the lock screen is *10 min*, not *600*.
+  Keyboard, mouse, touchpad and windows live in their own groups: repeat rate,
+  layout, variant and options, pointer sensitivity and acceleration, focus
+  policy, tap-to-click and scroll speed, corners, gaps, borders, layout, dim,
+  blur, shadows and scrolling width.
+  Window effects add floating and workspace gaps, the rounding curve, active and
+  fullscreen opacity, special, surrounding and modal dim, workspace wraparound,
+  blur size, passes, noise, contrast, brightness, vibrancy, popups and x-ray,
+  shadow range, power, scale and sharpness, glow, and window snapping.
+  Dwindle and master layouts add split control, master size and placement, and
+  the group bar. Appearance adds the monospace font and the bar center anchor.
 - **Lid and sleep** on laptops: what closing the lid does on battery, on AC, and when docked.
 - **Two ways back for every value**: one button to Omarchy's default, one to what your repo has.
 - **Secrets stay secret.** SSH keys and `.env` files are stored at mode 600. The panel shows a kind,
@@ -243,6 +250,21 @@ Panel, **Restore**, *Preview* shows what would change, and touches nothing.
   `omarchy bar move io.github.tymurbogach.replicant --section <left|center|right>`.
   The bar reloads the saved `shell.json` layout immediately. Updates and shell restarts keep it.
 - **Your own files**: **Add files** in the panel, or `track`, `untrack` and `forget`.
+- **Structured edits**: `shortcut`, `compose` and `bar-layout` rewrite one
+  managed block each (`bindings.lua`, `.XCompose`, `shell.json`). Every
+  mutation prints its preview first and writes only with `--apply`, then
+  saves the owning entry. Unmanaged lines are never touched.
+- **Workspaces and displays**: `workspace` keeps app rules and workspace
+  structure (names, layouts, keep-empty) shared in `hypr/hyprland.lua`, and
+  monitor assignments per-profile in `hypr/monitors.lua`. `display` sets
+  mode, scale, rotation, position, mirror, VRR and HDR after checking what
+  the connected monitor offers. `desc:` serials never print.
+- **Missing software**: panel, **Restore**, lists the packages of the
+  newest-saved machine that are missing here, official and AUR separately.
+  One Install button each runs the shown `omarchy pkg add` command. The
+  terminal does the same with `replicant reconcile` and
+  `replicant reconcile install <pkg...> [--aur] --apply`. Nothing is ever
+  removed, and base and ignored packages are never proposed.
 - **A key for the panel**: bind `omarchy shell replicant toggle` in `~/.config/hypr/bindings.lua`.
   `omarchy shell replicant tab settings` opens the panel on one tab.
 - **The command line**: the panel does not need it. To put `replicant` on your `PATH`, run

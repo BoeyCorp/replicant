@@ -15,7 +15,11 @@ Item {
   readonly property bool isBool:   setting.type === "bool" || setting.type === "lua-bool"
   readonly property bool isChoice: setting.type === "enum" || setting.type === "lua-enum"
                                 || setting.type === "line-enum" || setting.type === "theme"
-                                || setting.type === "ini-enum"
+                                || setting.type === "ini-enum" || setting.type === "font"
+  // Free strings: the bar anchor, XKB variant and XKB options. No dropdown
+  // can list them (any widget id, hundreds of variants, comma combinations),
+  // so they are typed, not picked.
+  readonly property bool isText: setting.type === "string" || setting.type === "lua-string"
   readonly property bool isLongList: srow.isChoice && (setting.options || []).length > 8
   readonly property bool isBlocked: String(setting.blocked_reason || "") !== ""
   readonly property bool usable: setting.available === true && !panel.busy && !srow.isBlocked
@@ -48,6 +52,7 @@ Item {
   // only when the control cannot say it: a rounded number, a value with a
   // name of its own ("never" for 0), or a choice, whose dropdown elides.
   readonly property string controlText: {
+    if (srow.isText) return String(srow.setting.value || "")
     var du = String(srow.setting.display_unit || "")
     return String(srow.setting.display_value) + (du !== "" ? " " + du : "")
   }
@@ -92,7 +97,11 @@ Item {
   // from their own implicitHeight is the polish() loop that renders nothing.
   readonly property int noticeLines: srow.noticeText === "" ? 0
                                    : (srow.noticeText.length > 38 ? 2 : 1)
-  implicitHeight: Style.space(34 + 16 * srow.subtitleLines + 16 * srow.noticeLines)
+  // The Configs row that owns this setting's file. Empty for file-less types
+  // and untracked files, which have no owner to jump to.
+  readonly property string ownerEntry: String(srow.setting.entry || "")
+  implicitHeight: Style.space(34 + 16 * srow.subtitleLines + 16 * srow.noticeLines
+                              + (srow.ownerEntry !== "" ? 16 : 0))
   opacity: srow.setting.available === true ? 1.0 : 0.45
 
   Row {
@@ -144,6 +153,21 @@ Item {
         wrapMode: Text.WordWrap
         maximumLineCount: 2
         elide: Text.ElideRight
+      }
+      // The owner in Configs. Dim, not accented: every row has one, and
+      // forty-odd accent lines would bury the one dot that means customised.
+      Text {
+        width: parent.width
+        visible: srow.ownerEntry !== ""
+        text: "→ in Configs: " + srow.ownerEntry
+        color: panel.dim; font.family: panel.ff; font.pixelSize: Style.font.caption
+        font.underline: true
+        elide: Text.ElideRight
+        MouseArea {
+          anchors.fill: parent
+          cursorShape: Qt.PointingHandCursor
+          onClicked: panel.showOwnerInConfigs(srow.ownerEntry)
+        }
       }
     }
 
@@ -281,6 +305,38 @@ Item {
         options: srow.isChoice ? (srow.setting.options || []) : []
         fontFamily: panel.ff
         onChanged: function(v) { if (srow.usable && v !== srow.setting.value) panel.doSetSetting(srow.setting.id, v) }
+        ToolTip.visible: hovered && !enabled
+        ToolTip.text: srow.unavailableReason
+      }
+
+      // Free strings are typed, not picked. Empty is a valid answer for the
+      // XKB rows (no variant, no extra options) and sends "".
+      TextField {
+        id: stringField
+        objectName: "setting-string-input"
+        visible: srow.isText
+        enabled: srow.usable
+        anchors.right: parent.right
+        anchors.verticalCenter: parent.verticalCenter
+        width: parent.width
+        text: srow.isText ? String(srow.setting.value || "") : ""
+        placeholderText: srow.setting.id === "input.kbVariant" || srow.setting.id === "input.kbOptions" ? "none" : ""
+        foreground: panel.fg; accent: Color.accent; font.family: panel.mono
+        property string queuedValue: ""
+        function submit() {
+          var raw = String(text)
+          if (!srow.usable || raw === String(srow.setting.value || "") || queuedValue === raw) return
+          queuedValue = raw
+          panel.doSetSetting(srow.setting.id, raw)
+        }
+        onAccepted: submit()
+        onActiveFocusChanged: if (!activeFocus) submit()
+        onTextChanged: if (String(text) !== queuedValue) queuedValue = ""
+        Keys.onEscapePressed: {
+          text = srow.isText ? String(srow.setting.value || "") : ""
+          queuedValue = ""
+          panel.releaseFocus()
+        }
         ToolTip.visible: hovered && !enabled
         ToolTip.text: srow.unavailableReason
       }

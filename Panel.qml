@@ -185,6 +185,15 @@ Panel {
   property bool shortcutsLoading: false
   property string shortcutsError: ""
   property bool showAllShortcuts: false
+  // Deferred settings: the opening payload carries none, and the Settings tab
+  // loads them on demand. The rows stay cached for the active session; every
+  // completed write clears the cache and the tab reloads on its next visit.
+  property bool settingsLoaded: false
+  property bool settingsLoading: false
+  property string settingsError: ""
+  // One manual apply action runs at a time. The buttons disable on it, and the
+  // flag clears when the job completes, fails, or is cancelled.
+  property bool applyBusy: false
 
   // ── what is open ──────────────────────────────────────────────────────────
   // Which accordion cards are open. A plain object, reassigned wholesale on
@@ -638,6 +647,10 @@ Panel {
   // one Install button, so fetching someone else's current code is always a
   // decision made here, not a side effect of restoring your own settings.
   readonly property var pendingReinstalls: root.repoState.pending_reinstalls || []
+  // Packages another saved machine has that this one lacks, official and
+  // AUR separately. Like plugins above, these only ever install named
+  // packages: nothing is removed, and the base and ignored sets never appear.
+  readonly property var pendingPackages: root.repoState.pending_packages || {}
 
   // ── settings, grouped in registry order ───────────────────────────────────
   readonly property int nCustomised: (root.repoState.settings || []).filter(function(s) { return s.can_revert_default === true }).length
@@ -664,8 +677,23 @@ Panel {
       out.push({ id: "set:" + meta[g].name, name: meta[g].name, icon: meta[g].icon,
                  description: meta[g].description, items: items, changed: changed })
     }
+    // Domain-major order, so the keyboard cursor meets the cards in the same
+    // order the tab draws them. Unknown domains file last, never first.
+    var order = R.SETTING_DOMAINS || []
+    var rank = {}
+    for (var r = 0; r < order.length; r++) rank[order[r]] = r
+    out.sort(function(a, b) {
+      var da = a.items.length > 0 ? String(a.items[0].domain || "") : ""
+      var db = b.items.length > 0 ? String(b.items[0].domain || "") : ""
+      var ra = rank[da] !== undefined ? rank[da] : 99
+      var rb = rank[db] !== undefined ? rank[db] : 99
+      return ra - rb
+    })
     return out
   }
+  // The five Settings domains as drawn sections. Empty domains (Desktop until
+  // the workspace editors arrive) are absent, not greyed out.
+  readonly property var settingDomains: R.groupSettingsByDomain(root.settingGroups)
 
   // ── actions ───────────────────────────────────────────────────────────────
   function refresh() {
@@ -703,6 +731,9 @@ Panel {
     var hist = (root.resultHistory || []).slice(-9)
     hist.push(entry)
     root.resultHistory = hist
+    // A write can move a setting value, a repo copy, or a scope: the cached
+    // settings rows are stale now, and the tab reloads them on its next visit.
+    root.invalidateSettings()
     root.refresh()
     if (root.activeTab === "restore" && root.opened) {
       root.reloadBackups()
@@ -779,6 +810,22 @@ Panel {
     root.shortcutsLoading = true
     root.shortcutsError = ""
     return controller.run("shortcuts", [root.cli, "shortcuts", "--json"], { busy: false, background: true })
+  }
+  function loadSettings() {
+    if (root.settingsLoaded || root.settingsLoading) return false
+    if (!root.ready) return false
+    root.settingsLoading = true
+    root.settingsError = ""
+    return controller.run("settings", [root.cli, "settings", "--json"], { busy: false, background: true })
+  }
+  function retrySettings() {
+    root.settingsError = ""
+    return root.loadSettings()
+  }
+  function invalidateSettings() {
+    root.settingsLoaded = false
+    if (root.hostWidget && root.hostWidget.invalidateSettingsCache) root.hostWidget.invalidateSettingsCache()
+    if (root.opened && root.activeTab === "settings" && root.ready) root.loadSettings()
   }
   function loadLog() {
     controller.run("log", [root.cli, "log", "--json", "-n", String(root.logCount)], { busy: false, background: true })
@@ -891,6 +938,36 @@ Panel {
   function doSetSetting(id, value) {
     root.busyLabel = "Saving " + id + "…"
     controller.run("setting", [root.cli, "set", id, String(value)], { label: "Setting " + id })
+  }
+
+  // Manual apply actions. Only the shell restart asks first: it closes the
+  // panel with the shell. The rest run straight away, one at a time.
+  function askApplyShell() {
+    root.ask("apply-shell", "",
+             "Restart the Omarchy shell now? The panel closes with it and comes back on its own.",
+             "Restart")
+  }
+  function doApplyShell() {
+    root.applyBusy = true
+    root.busyLabel = "Restarting the shell…"
+    controller.run("apply-shell", [root.cli, "apply", "shell", "--apply"], { label: "Restart shell" })
+  }
+  function doApplyHyprland() {
+    root.applyBusy = true
+    root.busyLabel = "Reloading Hyprland…"
+    controller.run("apply-hyprland", [root.cli, "apply", "hyprland", "--apply"], { label: "Reload Hyprland" })
+  }
+  function doApplyTerminal() {
+    root.applyBusy = true
+    root.busyLabel = "Restarting terminals…"
+    controller.run("apply-terminal", [root.cli, "apply", "terminal", "--apply"], { label: "Restart terminals" })
+  }
+
+  // Jump from a setting to the Configs row that owns its file.
+  function showOwnerInConfigs(id) {
+    if (!id) return
+    root.activeTab = "configs"
+    root.openRow = id
   }
 
   function doRevert(id, to) {
@@ -1166,6 +1243,14 @@ Panel {
     else if (a === "restore-cat")  { root.busyLabel = "Restoring " + arg + "…"; command = [root.cli, "restore", "--apply", "--yes", "--only", arg] }
     else if (a === "recover")      { root.busyLabel = "Bringing back " + arg.slice(0, 7) + "…"; command = [root.cli, "recover", arg, "--apply"]; label = "Bring back" }
     else if (a === "install-theme")  { root.busyLabel = "Installing " + arg + "…"; command = [root.cli, "install-theme", arg]; label = "Install" }
+    else if (a === "install-package") {
+      var packageParts = arg.split("\t")
+      var packageKind = packageParts[0] === "aur" ? "AUR" : "official"
+      root.busyLabel = "Installing " + packageParts[1] + "…"
+      command = [root.cli, "reconcile", "install", packageParts[1], "--apply"]
+      if (packageParts[0] === "aur") command.push("--aur")
+      label = "Install " + packageKind
+    }
     else if (a === "install-plugin") {
       var pluginParts = arg.split("\t")
       root.busyLabel = "Installing " + pluginParts[0] + "…"
@@ -1173,6 +1258,7 @@ Panel {
       label = "Install"
     }
     else if (a === "key-init")       { root.busyLabel = "Creating encryption key…"; command = [root.cli, "key", "init"]; label = "Create key" }
+    else if (a === "apply-shell")      { root.doApplyShell(); return }
     else if (a === "untrack")      { root.doUntrack(arg); return }
     else if (a === "forget")       { root.busyLabel = "Forgetting " + arg + "…"; controller.run("forget", [root.cli, "forget", arg], { label: "Forget" }); return }
     else if (a === "undo")          { root.doUndo(arg); return }
@@ -1210,6 +1296,15 @@ Panel {
     root.pendingInstall = { id: id, message: msg }
     root.busyLabel = "Checking " + id + " in the marketplace…"
     controller.run("market-check", [root.cli, "install-plugin", id, "--check"], { busy: false })
+  }
+
+  // Packages install with the exact official command, shown before consent.
+  // The panel runs what the terminal would run; nothing here ever removes.
+  function askInstallPackage(kind, id) {
+    var cmd = kind === "aur" ? "omarchy pkg aur add " + id : "omarchy pkg add " + id
+    root.ask("install-package", kind + "\t" + id,
+             "Install the " + (kind === "aur" ? "AUR" : "official") + " package \"" + id + "\"?\n\nRuns, visibly:\n" + cmd
+             + "\n\nBase and ignored packages are never proposed, and nothing is removed.", "Install")
   }
 
   // ── the reader ────────────────────────────────────────────────────────────
@@ -1255,10 +1350,31 @@ Panel {
         root.shortcutsLoading = false
         if (code !== 0) root.shortcutsError = text || "Could not read keyboard help."
         else try { root.shortcuts = JSON.parse(stdoutText || "{}"); root.shortcutsLoaded = true; root.shortcutsError = "" } catch (e) { root.shortcutsError = "Replicant returned invalid keyboard data." }
+      } else if (job === "settings") {
+        root.settingsLoading = false
+        if (code !== 0) {
+          root.settingsError = text || "Could not read settings."
+        } else {
+          var parsedSettings = R.parseSettingsPayload(stdoutText)
+          if (!parsedSettings.ok) {
+            root.settingsError = parsedSettings.error
+          } else {
+            var withSettings = {}
+            for (var sk in root.repoState) withSettings[sk] = root.repoState[sk]
+            withSettings.settings = parsedSettings.settings
+            root.repoState = withSettings
+            if (root.hostWidget && root.hostWidget.setSettingsCache) root.hostWidget.setSettingsCache(parsedSettings.settings)
+            root.settingsLoaded = true
+            root.settingsError = ""
+          }
+        }
       } else if (job === "suggest") {
         root.suggestLoading = false
         if (code !== 0) root.suggestError = text || "Could not read suggestions."
         else try { root.suggestions = JSON.parse(stdoutText || "[]"); root.suggestLoaded = true; root.suggestError = "" } catch (e) { root.suggestError = "Replicant returned invalid suggestions." }
+      } else if (job === "apply-shell" || job === "apply-hyprland" || job === "apply-terminal") {
+        root.applyBusy = false
+        root.finish(meta.label || job, code, stdoutText, stderrText, meta.progressResult)
       } else if (job === "browse") {
         try { root.browseData = JSON.parse(stdoutText || "{}") } catch (e) { root.browseData = ({ error: "could not be read", entries: [] }) }
       } else if (job === "backups") {
@@ -1317,6 +1433,8 @@ Panel {
           root.restoreScopeSelection(meta)
         } else {
           root.scopeAwaitingStatus = true
+          // A scope change moves the scope metadata the cached settings carry.
+          root.invalidateSettings()
           if (meta.outcome === "local-only" || meta.outcome === "warning") root.finish("Sync", code, stdoutText, stderrText, meta.progressResult)
           else if (hostWidget) hostWidget.refresh(false)
         }
@@ -1372,7 +1490,11 @@ Panel {
   function loadActiveTabData() {
     if (root.activeTab === "configs") root.loadSuggestions()
     if (root.activeTab === "restore") { root.loadBackups(); root.loadDeleted() }
+    if (root.activeTab === "settings") root.loadSettings()
   }
+  // The tab can open before the first status arrives. When readiness flips
+  // true, load whatever the visible tab needs instead of showing it empty.
+  onReadyChanged: if (root.ready) root.loadActiveTabData()
   function open() {
     root.opened = true; root.refresh()
     root.loadActiveTabData()

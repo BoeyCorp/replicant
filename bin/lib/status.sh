@@ -148,13 +148,19 @@ build_entries_json() {
   registry_build
   local row ev id kind source category scope live repo locked exists saved is_default
   local dirty unpushed incoming sync_state is_dir nfiles size label mapped_source
-  local -a vf=()
+  local -a vf=() RF=()
   {
     for row in ${REGISTRY[@]+"${REGISTRY[@]}"}; do
-      id=$(registry_field "$row" 1); kind=$(registry_field "$row" 2)
-      source=$(registry_field "$row" 3); category=$(registry_field "$row" 4)
-      scope=$(registry_field "$row" 5); live=$(registry_field "$row" 6)
-      repo=$(registry_field "$row" 7); locked=$(registry_field "$row" 9)
+      # Split the row ONCE. Each registry_field call is an awk fork, and seven
+      # of them per row across a hundred rows were seconds of process spawn
+      # to read a string this shell already had. Tabs go through \x1f first:
+      # tab is IFS whitespace, so read would collapse empty fields (the blob
+      # column is empty for every non-secret) and shift the rest.
+      IFS=$'\x1f' read -ra RF <<<"${row//$'\t'/$'\x1f'}"
+      id="${RF[0]}"; kind="${RF[1]}"
+      source="${RF[2]}"; category="${RF[3]}"
+      scope="${RF[4]}"; live="${RF[5]}"
+      repo="${RF[6]}"; locked="${RF[8]}"
       ev=$(state_eval "$row")
       mapfile -t vf < <(row_split "$ev" 17)
       exists="${vf[9]}"; is_default="${vf[11]}"; dirty="${vf[12]}"
@@ -325,13 +331,14 @@ core_status() {
   # and reads six numbers out of it; building forty kilobytes of file rows,
   # settings and categories for those six was most of the plugin's idle cost.
   # The full payload is built when the panel opens and after every write.
-  local json=0 force_fetch=0 brief=0 arg
+  local json=0 force_fetch=0 brief=0 defer_settings=0 arg
   for arg in "$@"; do
     case "$arg" in
       --json) json=1 ;;
       --fetch) force_fetch=1 ;;
       --no-fetch) force_fetch=-1 ;;
       --brief) brief=1 ;;
+      --defer-settings) defer_settings=1 ;;
     esac
   done
   if [[ ! -e "$REPO_DIR/.git" ]]; then
@@ -413,12 +420,23 @@ core_status() {
     return 0
   fi
   if (( json )); then
-    local entries_json settings_json categories_json groups_json machines_json pending_reinstalls_json plugins_json
+    local entries_json settings_json categories_json groups_json machines_json pending_reinstalls_json pending_packages_json plugins_json
     entries_json=$(build_entries_json)
-    settings_json=$(build_settings_json)
+    # Deferred initial load: the Settings tab is the only reader of the
+    # settings payload, so the opening payload skips building it. The marker
+    # tells the panel to fetch `settings --json` on demand. Old consumers pass
+    # no flag and receive the payload exactly as before.
+    local defer_extra="{}"
+    if (( defer_settings )); then
+      settings_json="[]"
+      defer_extra='{"settings_deferred":true}'
+    else
+      settings_json=$(build_settings_json)
+    fi
     categories_json=$(build_categories_json)
     groups_json=$(build_setting_groups_json)
     pending_reinstalls_json=$(build_pending_reinstalls_json)
+    pending_packages_json=$(build_pending_packages_json)
     plugins_json=$(build_plugins_json)
     local counts_json encryption_json
     counts_json=$(jq -nc --argjson entries "$entries_json" \
@@ -495,8 +513,9 @@ core_status() {
       --argjson settings "$settings_json" --argjson categories "$categories_json" \
       --argjson setting_groups "$groups_json" --argjson machines "$machines_json" \
       --arg profile "$(current_profile)" --argjson profiles "$profiles_json" \
-      --argjson pending_reinstalls "$pending_reinstalls_json" --argjson plugins "$plugins_json" \
+      --argjson pending_reinstalls "$pending_reinstalls_json" --argjson pending_packages "$pending_packages_json" --argjson plugins "$plugins_json" \
       --arg schema_version "$SCHEMA_FORMAT" \
+      --argjson defer_extra "$defer_extra" \
       '{initialized:true, schema_version:$schema_version, branch:$branch, remote:$remote, remote_name:$remote_name, remote_state:$remote_state,
         repo_dir:$repo_dir, machine:$machine, plugin_version:$plugin_version, home:$home,
         profile:$profile, profiles:$profiles,
@@ -506,7 +525,7 @@ core_status() {
         needs_action:$needs_action, counts:$counts, encryption:$encryption,
         entries:$entries, settings:$settings,
         categories:$categories, setting_groups:$setting_groups, machines:$machines,
-        pending_reinstalls:$pending_reinstalls, plugins:$plugins}'
+        pending_reinstalls:$pending_reinstalls, pending_packages:$pending_packages, plugins:$plugins} + $defer_extra'
   else
     echo "branch: $branch"
     echo "remote: ${remote:-<none>}"

@@ -393,6 +393,48 @@ TestCase {
     compare(absent.repoState.initialized, false)
   }
 
+  function test_deferred_settings_merge_keeps_the_cached_rows() {
+    var full = { initialized: true, settings: [{ id: "a" }], entries: [] }
+    var deferred = { initialized: true, settings: [], settings_deferred: true, entries: [] }
+    var merged = R.mergeDeferredStatus([{ id: "a" }], deferred)
+    compare(merged.settings.length, 1)
+    compare(merged.settings[0].id, "a")
+    verify(merged.settings_deferred === true)
+    var cold = R.mergeDeferredStatus([], deferred)
+    compare(cold.settings.length, 0)
+    var passthrough = R.mergeDeferredStatus([{ id: "a" }], full)
+    compare(passthrough.settings.length, 1)
+    compare(passthrough.settings_deferred, undefined)
+  }
+
+  function test_deferred_settings_payload_parses_closed() {
+    var good = R.parseSettingsPayload('[{"id":"a"}]')
+    verify(good.ok)
+    compare(good.settings.length, 1)
+    var broken = R.parseSettingsPayload("not json")
+    verify(!broken.ok)
+    verify(broken.error.length > 0)
+    var shape = R.parseSettingsPayload('{"settings":[]}')
+    verify(!shape.ok)
+  }
+
+  function test_setting_domains_order_five_sections_without_a_new_tab() {
+    var groups = [
+      { id: "set:Defaults", name: "Defaults", items: [{ id: "default.editor", domain: "Defaults" }] },
+      { id: "set:Keyboard", name: "Keyboard", items: [{ id: "input.repeatRate", domain: "Input" }] },
+      { id: "set:Appearance", name: "Appearance", items: [{ id: "theme.current", domain: "Look & feel" }] },
+      { id: "set:Idle & power", name: "Idle & power", items: [{ id: "idle.lock", domain: "Power" }] }
+    ]
+    var domains = R.groupSettingsByDomain(groups)
+    compare(domains.map(function(d) { return d.domain }).join(","),
+            "Look & feel,Input,Power,Defaults")
+    compare(domains[0].groups.length, 1)
+    compare(domains[0].groups[0].name, "Appearance")
+    compare(domains[1].groups[0].name, "Keyboard")
+    var empty = R.groupSettingsByDomain([])
+    compare(empty.length, 0)
+  }
+
   function test_unknown_state_is_a_warning_not_saved() {
     compare(R.stateWord("new-state"), "unknown state")
     compare(R.stateRole("new-state"), "warn")

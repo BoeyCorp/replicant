@@ -98,6 +98,51 @@ function statusResponse(text, code) {
   }
 }
 
+// Deferred settings: the opening payload answers every row except the
+// settings, and the Settings tab loads them on demand with `settings --json`.
+// The merge keeps the cached rows across refreshes; the parser fails closed.
+function mergeDeferredStatus(cached, parsed) {
+  if (!parsed || parsed.settings_deferred !== true) return parsed
+  var rows = Array.isArray(cached) && cached.length > 0 ? cached : []
+  var out = {}
+  for (var k in parsed) out[k] = parsed[k]
+  out.settings = rows
+  return out
+}
+
+function parseSettingsPayload(text) {
+  try {
+    var arr = JSON.parse(String(text || ""))
+    if (!Array.isArray(arr)) throw new Error("not an array")
+    return { ok: true, settings: arr, error: "" }
+  } catch (e) {
+    return { ok: false, settings: [], error: "Replicant returned invalid settings data." }
+  }
+}
+
+// The five Settings domains, in tab order. Groups file under them; nothing
+// adds a fifth primary tab. Desktop stays empty until the workspace and
+// display editors arrive.
+var SETTING_DOMAINS = ["Look & feel", "Input", "Desktop", "Power", "Defaults"]
+
+function groupSettingsByDomain(groups) {
+  var order = SETTING_DOMAINS.slice()
+  var buckets = {}
+  order.forEach(function(d) { buckets[d] = [] })
+  ;(groups || []).forEach(function(g) {
+    var items = g.items || []
+    if (items.length === 0) return
+    var d = items[0].domain || ""
+    if (!buckets[d]) { buckets[d] = []; order.push(d) }
+    buckets[d].push(g)
+  })
+  var out = []
+  order.forEach(function(d) {
+    if (buckets[d].length > 0) out.push({ domain: d, groups: buckets[d] })
+  })
+  return out
+}
+
 function stateWord(st) {
   // "off", the word the scope button, the legend and the card already use.
   // This said "not synced": two words for one state, two tabs apart.

@@ -246,6 +246,65 @@ Column {
     }
   }
 
+  // ── packages to install ───────────────────────────────────────────────────
+  // Recorded in another machine's inventory, missing here. Official and AUR
+  // separately, one Install button each. Nothing here ever removes, and the
+  // base and ignored sets never appear.
+  Card {
+    panel: rt.panel
+    width: rt.width
+    visible: (panel.pendingPackages.official || []).length + (panel.pendingPackages.aur || []).length > 0
+    icon: panel.icPlugin
+    title: "Packages to install"
+    subtitle: "On " + String(panel.pendingPackages.source || "another machine") + ", and not on this machine"
+    countText: String((panel.pendingPackages.official || []).length + (panel.pendingPackages.aur || []).length)
+
+    CardNote {
+      panel: rt.panel
+      text: "Base and ignored packages are never proposed, and nothing here removes anything."
+    }
+    Repeater {
+      model: panel.pendingPackages.official || []
+      delegate: ListRow {
+        id: officialRow
+        required property var modelData
+        panel: rt.panel
+        width: rt.width
+        icon: panel.icPlugin
+        title: String(officialRow.modelData)
+        detail: "official repository"
+        RowAction {
+          panel: rt.panel
+          anchors.verticalCenter: parent.verticalCenter
+          text: "Install"; iconText: panel.icFromRepo
+          enabled: !panel.busy
+          tooltipText: "Run omarchy pkg add " + String(officialRow.modelData)
+          onClicked: panel.askInstallPackage("official", String(officialRow.modelData))
+        }
+      }
+    }
+    Repeater {
+      model: panel.pendingPackages.aur || []
+      delegate: ListRow {
+        id: aurRow
+        required property var modelData
+        panel: rt.panel
+        width: rt.width
+        icon: panel.icPlugin
+        title: String(aurRow.modelData)
+        detail: "AUR"
+        RowAction {
+          panel: rt.panel
+          anchors.verticalCenter: parent.verticalCenter
+          text: "Install"; iconText: panel.icFromRepo
+          enabled: !panel.busy
+          tooltipText: "Run omarchy pkg aur add " + String(aurRow.modelData)
+          onClicked: panel.askInstallPackage("aur", String(aurRow.modelData))
+        }
+      }
+    }
+  }
+
   // ── the safety net ──────────────────────────────────────────────────────
   // Everything above promises "a .bak.<epoch> is kept". This is where that
   // promise is collected on: the bottom of the tab, where a person stands

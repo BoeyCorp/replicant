@@ -722,6 +722,83 @@ check "the full payload has entries" "true" "$(printf '%s' "$full" | jq 'has("en
 check "…and has no deprecated collections" "false" "$(printf '%s' "$full" | jq 'has("configs") or has("secrets")')"
 check "…and is not marked brief" "false" "$(printf '%s' "$full" | jq 'has("brief")')"
 
+section "deferred settings keep every row and skip the payload"
+# The panel opens on the full payload. Building forty-odd settings (Lua reads,
+# compositor state, scope resolution) is most of that time, and the Settings
+# tab is the only thing that reads them. Deferred status answers everything
+# else, and the tab loads its settings on demand.
+deferred=$(run status --json --defer-settings 2>/dev/null | tail -n1)
+check "deferred is valid JSON" "0" "$(printf '%s' "$deferred" | jq empty >/dev/null 2>&1; echo $?)"
+check "…and says it deferred the settings" "true" "$(printf '%s' "$deferred" | jq -r '.settings_deferred')"
+check "…with an empty settings array" "0" "$(printf '%s' "$deferred" | jq '.settings | length')"
+check "…but the same entry rows" "$(printf '%s' "$full" | jq '.entries | length')" "$(printf '%s' "$deferred" | jq '.entries | length')"
+for f in initialized entries setting_groups counts machines categories; do
+  check "deferred still answers $f" "true" "$(printf '%s' "$deferred" | jq --arg f "$f" 'has($f)')"
+done
+check "the old payload still carries its settings" "true" "$(printf '%s' "$full" | jq '(.settings | length) > 0')"
+check "…and carries no deferred marker" "false" "$(printf '%s' "$full" | jq 'has("settings_deferred")')"
+check "every setting names its domain, owner, scope and apply action" "0" \
+  "$(printf '%s' "$full" | jq '[.settings[] | select(.domain == null or .entry == null or .scope == null or .apply_action == null)] | length')"
+check_contains "help documents the deferred flag" "--defer-settings" "$(run status --help)"
+
+section "apply previews its plan and acts only with --apply"
+# Restarting the shell mid-suite would kill the session this suite runs in, so
+# setsid never reaches the real one here. hyprctl and omarchy are scripted by
+# mode: the harness stubs behind them always fail, which is exactly what the
+# failure paths need.
+mkdir -p "$TMP/applybin"
+printf '#!/bin/sh\necho "setsid $*" >> "%s"\nexit 0\n' "$STUB_LOG" > "$TMP/applybin/setsid"
+cat > "$TMP/applybin/hyprctl" <<EOF
+#!/bin/sh
+echo "hyprctl \$*" >> "$STUB_LOG"
+case "\${HYPRCTL_MODE:-ok}" in
+  ok) exit 0 ;;
+  error) if [[ "\$*" == *configerrors* ]]; then echo "mock: decoration blur error"; fi; exit 0 ;;
+  fail) exit 1 ;;
+  *) echo "hyprctl: command not found" >&2; exit 127 ;;
+esac
+EOF
+cat > "$TMP/applybin/omarchy" <<EOF
+#!/bin/sh
+echo "omarchy \$*" >> "$STUB_LOG"
+[[ "\${OMARCHY_MODE:-ok}" == "ok" ]] && exit 0
+exit 97
+EOF
+chmod +x "$TMP/applybin/setsid" "$TMP/applybin/hyprctl" "$TMP/applybin/omarchy"
+APPLY_SAVED_PATH="$PATH"
+export PATH="$TMP/applybin:$PATH"
+calls_before=$(grep -c . "$STUB_LOG" 2>/dev/null || echo 0)
+check "apply shell previews with rc=0" "0" "$(run apply shell >/dev/null 2>&1; echo $?)"
+check_contains "…and names the exact command" "omarchy restart shell" "$(run apply shell 2>&1)"
+check "…and runs nothing" "$calls_before" "$(grep -c . "$STUB_LOG" 2>/dev/null || echo 0)"
+check "apply shell --apply starts it detached" "0" "$(run apply shell --apply >/dev/null 2>&1; echo $?)"
+check_contains "…through setsid" "setsid -f omarchy restart shell" "$(cat "$STUB_LOG")"
+check "apply hyprland previews with rc=0" "0" "$(run apply hyprland >/dev/null 2>&1; echo $?)"
+check_contains "…and names the exact command" "hyprctl reload" "$(run apply hyprland 2>&1)"
+hypr_before=$(grep -c "hyprctl reload" "$STUB_LOG" 2>/dev/null || echo 0)
+run apply hyprland --apply >/dev/null 2>&1
+check "apply hyprland --apply reloads" "$((hypr_before + 1))" "$(grep -c "hyprctl reload" "$STUB_LOG" 2>/dev/null || echo 0)"
+export HYPRCTL_MODE=error
+check_false "a Hyprland config error fails the apply" "$CLI" apply hyprland --apply
+check_contains "…and names the error" "mock: decoration blur error" "$(run apply hyprland --apply 2>&1)"
+export HYPRCTL_MODE=fail
+check_false "a failed reload fails the apply" "$CLI" apply hyprland --apply
+export HYPRCTL_MODE=missing
+check_false "a missing Hyprland fails closed" "$CLI" apply hyprland --apply
+check_contains "…and says the reload failed" "failed (exit 127)" "$(run apply hyprland --apply 2>&1)"
+check "…without claiming anything applied" "0" "$(run apply hyprland --apply 2>&1 | grep -c 'no config errors' || true)"
+export HYPRCTL_MODE=ok
+check "apply terminal --apply restarts them" "0" "$(run apply terminal --apply >/dev/null 2>&1; echo $?)"
+check_contains "…through the Omarchy action" "omarchy restart terminal" "$(cat "$STUB_LOG")"
+export OMARCHY_MODE=fail
+check_false "a failing terminal restart fails the apply" "$CLI" apply terminal --apply
+export OMARCHY_MODE=ok
+check_false "an unknown apply target fails" "$CLI" apply frobnicate
+check_contains "…with usage" "usage:" "$(run apply frobnicate 2>&1)"
+check_contains "help documents apply" "restart the shell" "$(run apply --help)"
+unset HYPRCTL_MODE OMARCHY_MODE
+export PATH="$APPLY_SAVED_PATH"
+
 section "every command is asked a question it cannot answer"
 # A smoke pass over the whole surface. What is being checked is not that these
 # fail — it is that they fail the way a person can act on: exit 1 with a

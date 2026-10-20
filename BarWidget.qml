@@ -134,8 +134,30 @@ BarWidget {
     var cmd = [root.cli, "status", "--json"]
     if (force) cmd.push("--fetch")
     if (!full) cmd.push("--brief")
+    // The Settings tab is the only reader of the settings payload, so the
+    // opening payload defers it and the tab loads it on demand.
+    if (full) cmd.push("--defer-settings")
     probe.command = cmd
     probe.running = true
+  }
+
+  // The deferred settings rows, kept for the active session. A deferred
+  // payload carries none, so each one is merged over this cache; a write that
+  // can move a setting clears it, and the tab reloads on its next visit.
+  property var settingsCache: []
+  property bool settingsCacheValid: false
+  function setSettingsCache(rows) {
+    root.settingsCache = Array.isArray(rows) ? rows : []
+    root.settingsCacheValid = true
+    if (root.repoState && root.repoState.settings_deferred === true) {
+      var patched = R.mergeDeferredStatus(root.settingsCache, root.repoState)
+      root.repoState = patched
+      if (panelLoader.item) panelLoader.item.repoState = patched
+    }
+  }
+  function invalidateSettingsCache() {
+    root.settingsCache = []
+    root.settingsCacheValid = false
   }
 
   function retryStatus() {
@@ -172,7 +194,7 @@ BarWidget {
     onExited: function(code) {
       var response = R.statusResponse(probeOutput.text, code)
       if (response.ok) {
-        var parsed = response.repoState
+        var parsed = R.mergeDeferredStatus(root.settingsCacheValid ? root.settingsCache : [], response.repoState)
         // A brief answer carries the counters and nothing else. Assigning it
         // whole would empty the rows the panel is drawing from, so its fields
         // are merged over what is already known instead.

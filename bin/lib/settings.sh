@@ -79,12 +79,24 @@ SETTINGS=(
   "bar.sizeHorizontal|Appearance|$HOME/.config/omarchy/shell.toml|bar.size-horizontal|toml-int|Bar thickness (top/bottom)|px|16|80||Bar height on a horizontal edge; setting it stops the font scaling it||26|1||"
   "bar.sizeVertical|Appearance|$HOME/.config/omarchy/shell.toml|bar.size-vertical|toml-int|Bar thickness (left/right)|px|16|120||Bar width on a vertical edge; setting it stops the font scaling it||28|1||"
   "bar.iconFont|Appearance|$HOME/.config/omarchy/shell.toml|bar.icon-font|toml-int|Bar icon size|px|8|28||How large the glyphs in the bar are drawn||13|1||"
+  # The active monospace font, applied with `omarchy font set` and saved
+  # through fontconfig/fonts.conf. The repo copy holds the same XML, so the
+  # repo value is parsed out of it. No Omarchy default to revert to.
+  "font.mono|Appearance|$HOME/.config/fontconfig/fonts.conf|-|font|Monospace font|||||System monospace font for terminals|||1||"
+  # Which widget the center section centers on. A free string: any installed
+  # widget id works, Omarchy ships omarchy.clock as the default.
+  "bar.centerAnchor|Appearance|$HOME/.config/omarchy/shell.json|.bar.centerAnchor|string|Bar center anchor|||||Widget the center section centers on|||1||"
   # ── Keyboard — Hyprland reads Lua at startup, so these need an explicit reload.
   # Official Hyprland 0.56.2 limits: repeat_rate 0-200, repeat_delay 0-2000.
   "input.repeatRate|Keyboard|$HOME/.config/hypr/input.lua|input:repeat_rate|lua-int|Key repeat rate|/s|0|200||Characters a held key sends per second|hyprctl reload||1||"
   "input.repeatDelay|Keyboard|$HOME/.config/hypr/input.lua|input:repeat_delay|lua-int|Key repeat delay|ms|0|2000||How long a key is held before it starts repeating|hyprctl reload||1||"
   "input.kbLayout|Keyboard|$HOME/.config/hypr/input.lua|input:kb_layout|lua-enum|Keyboard layout||||@x11-layouts|X11 layout code for the keyboard|hyprctl reload||1||"
   "input.numlock|Keyboard|$HOME/.config/hypr/input.lua|input:numlock_by_default|lua-bool|Num lock at login|||||Turn the numeric keypad on when the session starts|hyprctl reload||1||"
+  # XKB variant and options are free strings, not enums: a variant depends on
+  # the layout (localectl lists hundreds) and options combine with commas
+  # (compose:caps plus shift:both_capslock_cancel). Empty means none.
+  "input.kbVariant|Keyboard|$HOME/.config/hypr/input.lua|input:kb_variant|lua-string|Keyboard variant|||||Variant for the layout, empty means none|hyprctl reload||1||"
+  "input.kbOptions|Keyboard|$HOME/.config/hypr/input.lua|input:kb_options|lua-string|Keyboard options|||||Comma options, Caps is Compose by default|hyprctl reload||1||"
   # ── Mouse & pointer — global, portable between machines.
   # sensitivity -1.0-1.0, scroll_factor 0-100, accel_profile adaptive/flat
   # (custom needs manual config and is not offered).
@@ -93,6 +105,11 @@ SETTINGS=(
   "input.naturalScrollMouse|Mouse & pointer|$HOME/.config/hypr/input.lua|input:natural_scroll|lua-bool|Natural scrolling (mouse)|||||Mouse: move content with the wheel, not the bar|hyprctl reload||1||"
   "input.scrollFactor|Mouse & pointer|$HOME/.config/hypr/input.lua|input:scroll_factor|lua-float|Wheel scroll speed||0|100||Multiplier for the mouse wheel movement|hyprctl reload|1.0|1||0.1"
   "input.leftHanded|Mouse & pointer|$HOME/.config/hypr/input.lua|input:left_handed|lua-bool|Left-handed mouse|||||Swap left and right mouse buttons|hyprctl reload||1||"
+  # Pointer focus policy — official 0.56.2 limits: follow 0-3, focus_on_close
+  # 0-2, float_switch 0-2. Verified with getoption on the live compositor.
+  "input.followMouse|Mouse & pointer|$HOME/.config/hypr/input.lua|input:follow_mouse|lua-int|Focus follows mouse||0|3||How cursor movement affects focus|hyprctl reload|1|1||"
+  "input.focusOnClose|Mouse & pointer|$HOME/.config/hypr/input.lua|input:focus_on_close|lua-int|Focus after close||0|2||Where focus goes when a window closes|hyprctl reload|0|1||"
+  "input.floatSwitchFocus|Mouse & pointer|$HOME/.config/hypr/input.lua|input:float_switch_override_focus|lua-int|Focus on float switch||0|2||Follow focus when toggling floating|hyprctl reload|1|1||"
   # ── Touchpad — visible even with none connected, so the config restores elsewhere.
   # touchpad scroll_factor 0-100, the rest are bools.
   "input.naturalScroll|Touchpad|$HOME/.config/hypr/input.lua|input:touchpad:natural_scroll|lua-bool|Natural scrolling|||||Touchpad: two fingers down moves the page up|hyprctl reload||1||"
@@ -120,6 +137,64 @@ SETTINGS=(
   "window.blurSpecial|Windows|$HOME/.config/hypr/looknfeel.lua|decoration:blur:special|lua-bool|Blur special workspace|||||Blur behind the scratchpad workspace|hyprctl reload||1||"
   "window.shadows|Windows|$HOME/.config/hypr/looknfeel.lua|decoration:shadow:enabled|lua-bool|Window shadows|||||Draw drop shadows under windows|hyprctl reload||1||"
   "window.columnWidth|Windows|$HOME/.config/hypr/looknfeel.lua|scrolling:column_width|lua-float|Scrolling column width||0.1|1||Fraction of the screen one column takes|hyprctl reload|0.5|1||0.01"
+  # ── Windows, effects — every route below answers Hyprland 0.56.2 getoption
+  # and carries the wiki bound. border-inside has no 0.56.2 route and animation
+  # speed has no scalar route: both stay out (see TASKS.md).
+  "window.floatGaps|Windows|$HOME/.config/hypr/looknfeel.lua|general:float_gaps|lua-int|Floating gaps|px|0|||Space around floating windows|hyprctl reload|0|1||"
+  "window.workspaceGaps|Windows|$HOME/.config/hypr/looknfeel.lua|general:gaps_workspaces|lua-int|Workspace gaps|px|0|||Extra gaps per workspace, added to outer gaps|hyprctl reload|0|1||"
+  "window.roundingPower|Windows|$HOME/.config/hypr/looknfeel.lua|decoration:rounding_power|lua-float|Rounding curve||2|10||Corner curve: 2 is a circle, 4 a squircle|hyprctl reload|2.0|1||0.5"
+  "window.activeOpacity|Windows|$HOME/.config/hypr/looknfeel.lua|decoration:active_opacity|lua-float|Active opacity||0|1||Transparency of the focused window|hyprctl reload|1.0|1||0.05"
+  "window.fullscreenOpacity|Windows|$HOME/.config/hypr/looknfeel.lua|decoration:fullscreen_opacity|lua-float|Fullscreen opacity||0|1||Transparency of fullscreen windows|hyprctl reload|1.0|1||0.05"
+  "window.dimSpecial|Windows|$HOME/.config/hypr/looknfeel.lua|decoration:dim_special|lua-float|Special workspace dim||0|1||How much the screen dims behind scratchpad|hyprctl reload|0.2|1||0.05"
+  "window.dimAround|Windows|$HOME/.config/hypr/looknfeel.lua|decoration:dim_around|lua-float|Surrounding dim||0|1||Dim level for the dim-around window rule|hyprctl reload|0.4|1||0.05"
+  "window.dimModal|Windows|$HOME/.config/hypr/looknfeel.lua|decoration:dim_modal|lua-bool|Modal dim|||||Dim parents of modal windows|hyprctl reload||1||"
+  "window.animWrap|Windows|$HOME/.config/hypr/looknfeel.lua|animations:workspace_wraparound|lua-bool|Workspace wraparound|||||Animate edge workspaces as neighbours|hyprctl reload||1||"
+  "window.blurSize|Windows|$HOME/.config/hypr/looknfeel.lua|decoration:blur:size|lua-int|Blur size|px|1|||Blur distance in pixels|hyprctl reload|8|1||"
+  "window.blurPasses|Windows|$HOME/.config/hypr/looknfeel.lua|decoration:blur:passes|lua-int|Blur passes||1|||Blur refinement passes|hyprctl reload|1|1||"
+  "window.blurNoise|Windows|$HOME/.config/hypr/looknfeel.lua|decoration:blur:noise|lua-float|Blur noise||0|1||Grain over the blur|hyprctl reload|0.0117|1||0.01"
+  "window.blurContrast|Windows|$HOME/.config/hypr/looknfeel.lua|decoration:blur:contrast|lua-float|Blur contrast||0|2||Contrast of blurred content|hyprctl reload|0.8916|1||0.05"
+  "window.blurBrightness|Windows|$HOME/.config/hypr/looknfeel.lua|decoration:blur:brightness|lua-float|Blur brightness||0|2||Brightness of blurred content|hyprctl reload|1.0|1||0.05"
+  "window.blurVibrancy|Windows|$HOME/.config/hypr/looknfeel.lua|decoration:blur:vibrancy|lua-float|Blur vibrancy||0|1||Saturation of blurred colours|hyprctl reload|0.1696|1||0.05"
+  "window.blurVibrancyDarkness|Windows|$HOME/.config/hypr/looknfeel.lua|decoration:blur:vibrancy_darkness|lua-float|Blur vibrancy darkness||0|1||Vibrancy strength on dark areas|hyprctl reload|0.0|1||0.05"
+  "window.blurPopups|Windows|$HOME/.config/hypr/looknfeel.lua|decoration:blur:popups|lua-bool|Blur popups|||||Blur behind menus and popups|hyprctl reload||1||"
+  "window.blurXray|Windows|$HOME/.config/hypr/looknfeel.lua|decoration:blur:xray|lua-bool|Blur x-ray|||||Floating windows ignore tiled ones in blur|hyprctl reload||1||"
+  "window.shadowRange|Windows|$HOME/.config/hypr/looknfeel.lua|decoration:shadow:range|lua-int|Shadow range|px|0|||Shadow size in pixels|hyprctl reload|4|1||"
+  "window.shadowPower|Windows|$HOME/.config/hypr/looknfeel.lua|decoration:shadow:render_power|lua-int|Shadow power||1|4||Shadow falloff speed, 1 to 4|hyprctl reload|3|1||"
+  "window.shadowScale|Windows|$HOME/.config/hypr/looknfeel.lua|decoration:shadow:scale|lua-float|Shadow scale||0|1||Shadow size multiplier|hyprctl reload|1.0|1||0.05"
+  "window.shadowSharp|Windows|$HOME/.config/hypr/looknfeel.lua|decoration:shadow:sharp|lua-bool|Sharp shadows|||||Hard-edged shadows|hyprctl reload||1||"
+  "window.glowEnabled|Windows|$HOME/.config/hypr/looknfeel.lua|decoration:glow:enabled|lua-bool|Window glow|||||Inner glow on windows|hyprctl reload||1||"
+  "window.glowRange|Windows|$HOME/.config/hypr/looknfeel.lua|decoration:glow:range|lua-int|Glow range|px|0|||Glow size in pixels|hyprctl reload|10|1||"
+  "window.glowPower|Windows|$HOME/.config/hypr/looknfeel.lua|decoration:glow:render_power|lua-int|Glow power||1|4||Glow falloff speed, 1 to 4|hyprctl reload|3|1||"
+  "window.snapEnabled|Windows|$HOME/.config/hypr/looknfeel.lua|general:snap:enabled|lua-bool|Window snapping|||||Snap floating windows to edges|hyprctl reload||1||"
+  "window.snapWindowGap|Windows|$HOME/.config/hypr/looknfeel.lua|general:snap:window_gap|lua-int|Snap window gap|px|0|||Gap before windows snap together|hyprctl reload|10|1||"
+  "window.snapMonitorGap|Windows|$HOME/.config/hypr/looknfeel.lua|general:snap:monitor_gap|lua-int|Snap screen gap|px|0|||Gap before windows snap to edges|hyprctl reload|10|1||"
+  "window.snapBorderOverlap|Windows|$HOME/.config/hypr/looknfeel.lua|general:snap:border_overlap|lua-bool|Snap border overlap|||||Snap with one border of space|hyprctl reload||1||"
+  # ── Windows, layout: dwindle — verified against Hyprland 0.56.2 getoption.
+  # split_bias 0-1 (directional or current), force_split 0-2 (mouse, left/top,
+  # right/bottom), multiplier 0.1-4 (wiki gives no upper bound; 4 is generous).
+  "window.dwindleBias|Windows|$HOME/.config/hypr/looknfeel.lua|dwindle:split_bias|lua-int|Split recipient||0|1||Which window receives the split ratio|hyprctl reload|0|1||"
+  "window.dwindleForceSplit|Windows|$HOME/.config/hypr/looknfeel.lua|dwindle:force_split|lua-int|Forced split direction||0|2||0 follows mouse, 1 left or top, 2 right or bottom|hyprctl reload|0|1||"
+  "window.dwindlePreserveSplit|Windows|$HOME/.config/hypr/looknfeel.lua|dwindle:preserve_split|lua-bool|Keep split direction|||||Split side never changes by itself|hyprctl reload||1||"
+  "window.dwindleSmartSplit|Windows|$HOME/.config/hypr/looknfeel.lua|dwindle:smart_split|lua-bool|Smart split|||||Split follows the cursor position|hyprctl reload||1||"
+  "window.dwindleSplitMultiplier|Windows|$HOME/.config/hypr/looknfeel.lua|dwindle:split_width_multiplier|lua-float|Split width multiplier||0.1|4||Width multiplier for auto-split on wide screens|hyprctl reload|1.0|1||0.05"
+  # ── Windows, layout: master — mfact 0-1, new_status the three portable
+  # words, orientation the five placements. Verified on 0.56.2.
+  "window.masterFactor|Windows|$HOME/.config/hypr/looknfeel.lua|master:mfact|lua-float|Master area size||0|1||Share of the screen for the master window|hyprctl reload|0.55|1||0.01"
+  "window.masterNewStatus|Windows|$HOME/.config/hypr/looknfeel.lua|master:new_status|lua-enum|New window status||||master,slave,inherit|Master, slave stack or inherit from focus|hyprctl reload|slave|1||"
+  "window.masterOrientation|Windows|$HOME/.config/hypr/looknfeel.lua|master:orientation|lua-enum|Master orientation||||left,right,top,bottom,center|Where the master area sits|hyprctl reload|left|1||"
+  # ── Windows, grouped windows — every route answers 0.56.2 getoption.
+  # Colors (col.*, text_color) are not portable scalars and stay out, like
+  # border-inside before them. gradient_rounding stays out: one rounding
+  # control is enough for a portable catalog.
+  "window.groupbarEnabled|Windows|$HOME/.config/hypr/looknfeel.lua|group:groupbar:enabled|lua-bool|Group bar|||||Show a bar on grouped windows|hyprctl reload||1||"
+  "window.groupbarHeight|Windows|$HOME/.config/hypr/looknfeel.lua|group:groupbar:height|lua-int|Group bar height|px|0|64||Height of the grouped window bar|hyprctl reload|14|1||"
+  "window.groupbarIndicatorGap|Windows|$HOME/.config/hypr/looknfeel.lua|group:groupbar:indicator_gap|lua-int|Group indicator gap|px|0|64||Gap between the indicator and the title|hyprctl reload|0|1||"
+  "window.groupbarIndicatorHeight|Windows|$HOME/.config/hypr/looknfeel.lua|group:groupbar:indicator_height|lua-int|Group indicator height|px|0|64||Height of the group indicator|hyprctl reload|3|1||"
+  "window.groupbarTitles|Windows|$HOME/.config/hypr/looknfeel.lua|group:groupbar:render_titles|lua-bool|Group titles|||||Show window titles in the group bar|hyprctl reload||1||"
+  "window.groupbarRounding|Windows|$HOME/.config/hypr/looknfeel.lua|group:groupbar:rounding|lua-int|Group indicator rounding|px|0|40||Rounding of the group indicator|hyprctl reload|1|1||"
+  "window.groupbarGradients|Windows|$HOME/.config/hypr/looknfeel.lua|group:groupbar:gradients|lua-bool|Group gradients|||||Gradient colors on the group bar|hyprctl reload||1||"
+  "window.groupbarStacked|Windows|$HOME/.config/hypr/looknfeel.lua|group:groupbar:stacked|lua-bool|Stacked group bar|||||Render the group bar vertically|hyprctl reload||1||"
+  "window.groupbarFontSize|Windows|$HOME/.config/hypr/looknfeel.lua|group:groupbar:font_size|lua-int|Group bar font size|pt|2|64||Title size in the group bar|hyprctl reload|8|1||"
   # ── Lid & sleep — /etc/systemd/logind.conf.d/, root-owned, laptop only.
   # These are the three questions a laptop actually asks. logind's own built-in
   # default for all three is 'suspend'; the fallback field records that so the
@@ -516,7 +591,7 @@ lua_set() {
 lua_format_value() {
   local type="$1" value="$2"
   case "$type" in
-    lua-enum) printf '"%s"\n' "$value" ;;
+    lua-enum|lua-string) printf '"%s"\n' "$value" ;;
     *) printf '%s\n' "$value" ;;
   esac
 }
@@ -547,7 +622,7 @@ lua_literal_matches_type() {
     lua-int) [[ "$literal" =~ ^-?[0-9]+$ ]] ;;
     lua-float) [[ "$literal" =~ ^-?[0-9]*\.?[0-9]+$ ]] ;;
     lua-bool) [[ "$literal" == true || "$literal" == false ]] ;;
-    lua-enum) [[ "$literal" =~ ^\"([^\"\\]|\\.)*\"$ ]] || [[ "$literal" =~ ^\'([^\'\\]|\\.)*\'$ ]] ;;
+    lua-enum|lua-string) [[ "$literal" =~ ^\"([^\"\\]|\\.)*\"$ ]] || [[ "$literal" =~ ^\'([^\'\\]|\\.)*\'$ ]] ;;
     *) return 1 ;;
   esac
 }
@@ -650,7 +725,7 @@ lua_render_input_block() {
 
 lua_render_look_block() {
   local aname="$1" k v
-  local -a general=() anim=() scroll=() deco=() blur=() shadow=()
+  local -a general=() anim=() scroll=() deco=() blur=() shadow=() dwindle=() master=() groupbar=()
   eval 'for k in "${!'"$aname"'[@]}"; do
     case "$k" in
       general:*) v="${k#general:}"; general+=("$v") ;;
@@ -659,6 +734,9 @@ lua_render_look_block() {
       decoration:blur:*) v="${k#decoration:blur:}"; blur+=("$v") ;;
       decoration:shadow:*) v="${k#decoration:shadow:}"; shadow+=("$v") ;;
       decoration:*) v="${k#decoration:}"; deco+=("$v") ;;
+      dwindle:*) v="${k#dwindle:}"; dwindle+=("$v") ;;
+      master:*) v="${k#master:}"; master+=("$v") ;;
+      group:groupbar:*) v="${k#group:groupbar:}"; groupbar+=("$v") ;;
     esac
   done'
   printf 'hl.config({\n'
@@ -715,6 +793,35 @@ lua_render_look_block() {
       eval 'v="${'"$aname"'[scrolling:'"$key"']}"'
       printf '    %s = %s,\n' "$key" "$v"
     done < <(printf '%s\n' "${scroll[@]}" | LC_ALL=C sort -u)
+    printf '  },\n'
+  fi
+  if (( ${#dwindle[@]} )); then
+    printf '  dwindle = {\n'
+    while IFS= read -r key; do
+      [[ -n "$key" ]] || continue
+      eval 'v="${'"$aname"'[dwindle:'"$key"']}"'
+      printf '    %s = %s,\n' "$key" "$v"
+    done < <(printf '%s\n' "${dwindle[@]}" | LC_ALL=C sort -u)
+    printf '  },\n'
+  fi
+  if (( ${#master[@]} )); then
+    printf '  master = {\n'
+    while IFS= read -r key; do
+      [[ -n "$key" ]] || continue
+      eval 'v="${'"$aname"'[master:'"$key"']}"'
+      printf '    %s = %s,\n' "$key" "$v"
+    done < <(printf '%s\n' "${master[@]}" | LC_ALL=C sort -u)
+    printf '  },\n'
+  fi
+  if (( ${#groupbar[@]} )); then
+    printf '  group = {\n'
+    printf '    groupbar = {\n'
+    while IFS= read -r key; do
+      [[ -n "$key" ]] || continue
+      eval 'v="${'"$aname"'[group:groupbar:'"$key"']}"'
+      printf '      %s = %s,\n' "$key" "$v"
+    done < <(printf '%s\n' "${groupbar[@]}" | LC_ALL=C sort -u)
+    printf '    },\n'
     printf '  },\n'
   fi
   printf '})\n'
@@ -826,6 +933,8 @@ setting_options() {
   fi
   if [[ "$(setting_field "$entry" 5)" == "theme" ]]; then
     opts=$(omarchy-theme-list 2>/dev/null | paste -sd, - || true)
+  elif [[ "$(setting_field "$entry" 5)" == "font" ]]; then
+    opts=$(omarchy font list 2>/dev/null | paste -sd, - || true)
   else
     opts=$(setting_field "$entry" 10)
     if [[ "$opts" == "@x11-layouts" ]]; then
@@ -844,6 +953,11 @@ get_setting_value() {
   case "$type" in
     theme)
       omarchy-theme-current 2>/dev/null || return 1
+      ;;
+    font)
+      raw=$(omarchy font current 2>/dev/null | head -n1)
+      [[ -n "$raw" ]] || return 1
+      printf '%s\n' "$raw"
       ;;
     line-enum)
       [[ -f "$file" ]] || return 1
@@ -868,7 +982,7 @@ get_setting_value() {
       [[ -n "$raw" ]] || return 1
       printf '%s\n' "$raw"
       ;;
-    lua-int|lua-float|lua-bool|lua-enum)
+    lua-int|lua-float|lua-bool|lua-enum|lua-string)
       lua_file_value "$file" "$path"
       ;;
     *)
@@ -919,7 +1033,7 @@ set_setting_value() {
     bool|lua-bool)
       [[ "$value" == "true" || "$value" == "false" ]] || { echo "$1: '$value' must be true or false" >&2; return 1; }
       ;;
-    enum|lua-enum|line-enum|theme|ini-enum)
+    enum|lua-enum|line-enum|theme|font|ini-enum)
       [[ -n "$options" ]] || { echo "$1: no options available on this machine" >&2; return 1; }
       if [[ "$options" == "@x11-layouts" ]]; then
         # dynamic list already resolved above; accept what this machine knows
@@ -928,12 +1042,24 @@ set_setting_value() {
         [[ ",$options," == *",$value,"* ]] || { echo "$1: '$value' is not one of: ${options//,/, }" >&2; return 1; }
       fi
       ;;
+    string)
+      [[ -n "$value" ]] || { echo "$1: value must not be empty" >&2; return 1; }
+      [[ "$value" =~ ^[A-Za-z0-9._-]+$ ]] || { echo "$1: '$value' is not a widget id" >&2; return 1; }
+      ;;
+    lua-string)
+      # Free Hyprland strings: letters, digits and the separators an XKB
+      # setup needs (comma, colon, plus, underscore, dash). Empty means none.
+      [[ "$value" =~ ^[A-Za-z0-9_:,+\.-]*$ ]] || { echo "$1: '$value' holds unsupported characters" >&2; return 1; }
+      ;;
   esac
 
   # ── write
   case "$type" in
     theme)
       omarchy-theme-set "$value" >/dev/null 2>&1 || { echo "$1: omarchy-theme-set failed" >&2; return 1; }
+      ;;
+    font)
+      omarchy font set "$value" >/dev/null 2>&1 || { echo "$1: omarchy font set failed" >&2; return 1; }
       ;;
     line-enum)
       backup_before_write "$file"
@@ -950,7 +1076,7 @@ set_setting_value() {
       ini_set "$file" "$path" "$value" "$apply" || { echo "$1: $file was left untouched" >&2; return 1; }
       apply=""
       ;;
-    lua-int|lua-float|lua-bool|lua-enum)
+    lua-int|lua-float|lua-bool|lua-enum|lua-string)
       local out_tmp out_n backup_path new_errors
       [[ -f "$file" ]] || { echo "file not found: $file" >&2; return 1; }
       if ! command -v hyprctl >/dev/null 2>&1; then
@@ -1169,8 +1295,8 @@ file_map() {
 map_kind_for_type() {
   case "$1" in
     toml-int|toml-float|ini-enum)  echo toml ;;
-    number|bool|enum)              echo json ;;
-    lua-int|lua-float|lua-bool|lua-enum) echo lua ;;
+    number|bool|enum|string)        echo json ;;
+    lua-int|lua-float|lua-bool|lua-enum|lua-string) echo lua ;;
     *)                             echo "" ;;
   esac
 }
@@ -1210,6 +1336,16 @@ map_lookup() {
   return 1
 }
 
+# fontconfig_family <file> — the monospace family omarchy font set recorded
+# in a fontconfig drop-in: the <string> inside the <edit> block. The match
+# block also carries a <string> (monospace), so the whole file is not grepped.
+fontconfig_family() {
+  local file="$1" fam
+  [[ -f "$file" ]] || return 1
+  fam=$(awk '/<edit/,/<\/edit>/ { if (match($0, /<string>[^<]*<\/string>/)) { s = substr($0, RSTART, RLENGTH); gsub(/<\/?string>/, "", s); print s; exit } }' "$file" || true)
+  [[ -n "$fam" ]] || return 1
+  printf '%s\n' "$fam"
+}
 read_setting_from() {
   local entry="$1" file="$2" path type raw
   path=$(setting_field "$entry" 4); type=$(setting_field "$entry" 5)
@@ -1221,12 +1357,14 @@ read_setting_from() {
     toml-int|toml-float|ini-enum)
       raw=$(map_lookup "$file" toml "$path") || return 1
       [[ -n "$raw" ]] && printf '%s\n' "$raw" || return 1 ;;
-    lua-int|lua-float|lua-bool|lua-enum)
+    lua-int|lua-float|lua-bool|lua-enum|lua-string)
       lua_file_value "$file" "$path" ;;
-    number|bool|enum)
+    number|bool|enum|string)
       raw=$(map_lookup "$file" json "$path") || return 1
       [[ "$raw" == "null" ]] && return 1
       printf '%s\n' "$raw" ;;
+    font)
+      fontconfig_family "$file" ;;
     *) return 1 ;;
   esac
 }
@@ -1270,6 +1408,10 @@ setting_default_value() {
                 # (kb_layout = kb_layout), not a literal layout code.
                 [[ "$cand" == "kb_layout" || "$cand" == "kb_variant" || "$cand" == "kb_options" ]] && cand=""
               fi
+            elif [[ "$type" == lua-string ]]; then
+              # The default file carries Lua variables (kb_variant = kb_variant),
+              # not literals. A bare variable name is not a default value.
+              [[ "$cand" == "kb_variant" || "$cand" == "kb_options" || "$cand" == "kb_layout" ]] && cand=""
             fi
             [[ -n "$cand" ]] && { printf '%s\n' "$cand"; return 0; }
           fi
@@ -1328,6 +1470,10 @@ setting_value_saved() {
     live_norm=$(tr -cd '[:alnum:]' <<<"${live,,}")
     repo_norm=$(tr -cd '[:alnum:]' <<<"${repo,,}")
     [[ -n "$live_norm" && "$live_norm" == "$repo_norm" ]]
+  elif [[ "$type" == font ]]; then
+    live_norm=$(tr -cd '[:alnum:]' <<<"${live,,}")
+    repo_norm=$(tr -cd '[:alnum:]' <<<"${repo,,}")
+    [[ -n "$live_norm" && "$live_norm" == "$repo_norm" ]]
   else
     [[ "$repo" == "$live" ]]
   fi
@@ -1374,9 +1520,11 @@ build_settings_json() {
   # status once a minute and refreshes after every write, and forty-odd `jq -n`
   # spawns per build were most of the time that took.
   local entry id group file path type label unit min max options hint value available fallback implicit
+  local domain apply mrel mscope _tre
   local scale disp step dvalue dmin dmax dstep vtext defval deftext repoval repotext canrd canrr numeric boolean
   local lnotice inforce by blocked
   local dim_inactive_val="" blur_val="" layout_val=""
+  local shadow_val="" glow_val="" snap_val="" anims_val="" groupbar_val=""
   {
   local laptop=1; is_laptop || laptop=0
   local -a F
@@ -1389,6 +1537,18 @@ build_settings_json() {
     # A desktop has no lid. The group is absent rather than greyed out.
     [[ "$group" == "Lid & sleep" && "$laptop" == 0 ]] && continue
     file="${F[2]}";      path="${F[3]}"
+    apply="${F[11]:-}"
+    # The domain is the top-level Settings section the group belongs to. A
+    # case, not a helper call: each command substitution is a fork, and this
+    # loop already paid hundreds of them once. Nothing maps to Desktop yet:
+    # workspace and display editors arrive in a later phase.
+    case "$group" in
+      "Idle & power"|"Lid & sleep") domain="Power" ;;
+      "Appearance"|"Windows") domain="Look & feel" ;;
+      "Keyboard"|"Mouse & pointer"|"Touchpad") domain="Input" ;;
+      "Defaults") domain="Defaults" ;;
+      *) domain="$group" ;;
+    esac
     type="${F[4]}";      label="${F[5]}"
     unit="${F[6]}";      min="${F[7]}"
     max="${F[8]}";       hint="${F[10]}"
@@ -1397,7 +1557,8 @@ build_settings_json() {
     [[ -n "$scale" ]] || scale=1
     [[ -n "$disp" ]] || disp="$unit"
     options=$(setting_options "$entry")
-    value=$(get_setting_value "$id" 2>/dev/null) || value=""
+    value=""; value_found=false
+    if value=$(get_setting_value "$id" 2>/dev/null); then value_found=true; else value=""; fi
     implicit=false
     # The Hyprland value in force when the option is not written anywhere.
     # Tried before the registry fallback: the session already merges Omarchy's
@@ -1422,7 +1583,12 @@ build_settings_json() {
       fi
     fi
     if [[ -z "$value" && -n "$fallback" ]]; then value="$fallback"; implicit=true; fi
-    if [[ -n "$value" ]]; then available=true; else available=false; fi
+    # A free Hyprland string distinguishes "not set" (missing) from "none"
+    # (set to ""): an empty variant is a valid answer, and the control must
+    # stay usable so one can be added. Every other empty value stays missing.
+    if [[ -n "$value" ]]; then available=true
+    elif [[ "$value_found" == true && "$type" == "lua-string" ]]; then available=true
+    else available=false; fi
 
     # Shape check per type — a malformed value is "not available", never a
     # control bound to a value it cannot render.
@@ -1475,6 +1641,11 @@ build_settings_json() {
       window.dimInactive) dim_inactive_val="$value" ;;
       window.blur) blur_val="$value" ;;
       window.layout) layout_val="$value" ;;
+      window.shadows) shadow_val="$value" ;;
+      window.glowEnabled) glow_val="$value" ;;
+      window.snapEnabled) snap_val="$value" ;;
+      window.animations) anims_val="$value" ;;
+      window.groupbarEnabled) groupbar_val="$value" ;;
     esac
     blocked=""
     case "$id" in
@@ -1482,8 +1653,24 @@ build_settings_json() {
         [[ "$dim_inactive_val" != "true" ]] && blocked="Turn on Dim inactive windows to use dim strength." ;;
       window.blurSpecial)
         [[ "$blur_val" != "true" ]] && blocked="Turn on Blur to use the special workspace blur." ;;
+      window.blurSize|window.blurPasses|window.blurNoise|window.blurContrast|window.blurBrightness|window.blurVibrancy|window.blurVibrancyDarkness|window.blurPopups|window.blurXray)
+        [[ "$blur_val" != "true" ]] && blocked="Turn on Blur to use this blur control." ;;
+      window.shadowRange|window.shadowPower|window.shadowScale|window.shadowSharp)
+        [[ "$shadow_val" != "true" ]] && blocked="Turn on Window shadows to use this shadow control." ;;
+      window.glowRange|window.glowPower)
+        [[ "$glow_val" != "true" ]] && blocked="Turn on Window glow to use this glow control." ;;
+      window.snapWindowGap|window.snapMonitorGap|window.snapBorderOverlap)
+        [[ "$snap_val" != "true" ]] && blocked="Turn on Window snapping to use this snapping control." ;;
+      window.animWrap)
+        [[ "$anims_val" != "true" ]] && blocked="Turn on Animations to use workspace wraparound." ;;
       window.columnWidth)
         [[ "$layout_val" != "scrolling" ]] && blocked="Switch Window layout to scrolling to use column width." ;;
+      window.dwindleBias|window.dwindleForceSplit|window.dwindlePreserveSplit|window.dwindleSmartSplit|window.dwindleSplitMultiplier)
+        [[ "$layout_val" != "dwindle" ]] && blocked="Switch Window layout to dwindle to use this control." ;;
+      window.masterFactor|window.masterNewStatus|window.masterOrientation)
+        [[ "$layout_val" != "master" ]] && blocked="Switch Window layout to master to use this control." ;;
+      window.groupbarHeight|window.groupbarIndicatorGap|window.groupbarIndicatorHeight|window.groupbarTitles|window.groupbarRounding|window.groupbarGradients|window.groupbarStacked|window.groupbarFontSize)
+        [[ "$groupbar_val" != "true" ]] && blocked="Turn on Group bar to use this group control." ;;
     esac
 
     # Hyprland is asked, not the file. These controls write input.lua and
@@ -1522,22 +1709,29 @@ build_settings_json() {
     # A scope of off is policy, not failure, but the row must say so before the
     # person touches the control. Without this the change applies locally and the
     # save step warns afterwards, which reads as a surprise error.
-    if [[ -z "$lnotice" && -z "$blocked" && "$file" != "-" && "$available" == true ]]; then
-      scope_rel=""; scope_val=""
-      scope_rel=$(rel_for_src "$file" 2>/dev/null || true)
-      if [[ -n "$scope_rel" ]]; then
-        scope_val=$(scope_for "$scope_rel" 2>/dev/null || echo shared)
-        if [[ "$scope_val" == "off" ]]; then
-          lnotice="Applies locally only — $scope_rel is off. Set it to Shared to save it."
-        fi
+    # Owner and scope metadata for the panel: which Configs row owns this
+    # file, and what scope that row carries. Untracked files and file-less
+    # types carry empty strings, never a guessed scope. Inline loops, not
+    # rel_for_src/scope_for calls: each one is a fork, and this runs per row.
+    mrel=""; mscope=""
+    if [[ "$file" != "-" ]]; then
+      for _tre in "${TRACKED[@]}" "${TRACKED_SECRETS[@]}"; do
+        [[ "${_tre%%:*}" == "$file" ]] && { mrel="${_tre##*:}"; break; }
+      done
+      if [[ -n "$mrel" ]]; then
+        load_scope_map
+        mscope="${SCOPE_OF[$mrel]:-shared}"
       fi
     fi
+    if [[ -z "$lnotice" && -z "$blocked" && -n "$mrel" && "$mscope" == "off" && "$available" == true ]]; then
+      lnotice="Applies locally only — $mrel is off. Set it to Shared to save it."
+    fi
 
-    printf '%s\x1f%s\x1f%s\x1f%s\x1f%s\x1f%s\x1f%s\x1f%s\x1f%s\x1f%s\x1f%s\x1f%s\x1f%s\x1f%s\x1f%s\x1f%s\x1f%s\x1f%s\x1f%s\x1f%s\x1f%s\x1f%s\x1f%s\x1f%s\x1f%s\x1f%s\x1f%s\x1f%s\x1f%s\x1f%s\n' \
+    printf '%s\x1f%s\x1f%s\x1f%s\x1f%s\x1f%s\x1f%s\x1f%s\x1f%s\x1f%s\x1f%s\x1f%s\x1f%s\x1f%s\x1f%s\x1f%s\x1f%s\x1f%s\x1f%s\x1f%s\x1f%s\x1f%s\x1f%s\x1f%s\x1f%s\x1f%s\x1f%s\x1f%s\x1f%s\x1f%s\x1f%s\x1f%s\x1f%s\x1f%s\n' \
       "$id" "$group" "$label" "$type" "$unit" "$min" "$max" "$options" "$hint" "$file" \
       "$available" "$implicit" "$value" "$scale" "$disp" "$dvalue" "$dmin" "$dmax" "$dstep" \
       "$vtext" "$defval" "$deftext" "$repoval" "$repotext" "$canrd" "$canrr" "$numeric" "$boolean" \
-      "$lnotice" "$blocked"
+      "$lnotice" "$blocked" "$domain" "$mrel" "$mscope" "$apply"
   done
   } | jq -Rsc '
     def num: if . == "" then null else (tonumber? // null) end;
@@ -1559,7 +1753,8 @@ build_settings_json() {
       repo_value: .[22], repo_text: .[23],
       can_revert_default: (.[24]|flag), can_revert_repo: (.[25]|flag),
       lua_notice: (.[28] // ""),
-      blocked_reason: (.[29] // "")
+      blocked_reason: (.[29] // ""),
+      domain: .[30], entry: .[31], scope: .[32], apply_action: .[33]
     })' | jq -c --arg lidblock "$(lid_blocked_by)" '
     # A second pass, because a notice is about how settings sit RELATIVE to each
     # other and the per-setting record cannot see its siblings.

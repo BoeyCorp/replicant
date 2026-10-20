@@ -339,3 +339,320 @@ Assumptions the code honors (no exceptions):
   (`hypr/input.lua`, `hypr/looknfeel.lua`).
 - Replicant never modifies installed defaults and never creates
   `hypr/replicant-settings.lua`: it only reads `/usr/share/omarchy`.
+
+## Portable controls expansion 0.41.0
+
+This checklist is the execution source of truth for the 0.41.0 release.
+
+Use the local `feature/portable-controls-0.41` branch for phases I0 through I7. Do not push phase commits.
+Each completed phase must include its tests, documentation updates, and one clean local commit. Keep a failed
+phase unchecked, report it as `NO OK`, and do not commit failing work. Update this file and `ROADMAP.md` after
+each phase. Do not change `preview.png`, public screenshots, or the release version before phase I8.
+
+### Product decisions
+
+- Keep the four primary tabs: Restore, Settings, Configs, and Machines.
+- Organize Settings into Look & feel, Input, Desktop, Power, and Defaults.
+- Keep global search, the customized filter, and keyboard navigation across all Settings domains.
+- Target 95 to 105 portable settings. Validate each control independently from OmaControl.
+- Keep the current repository format. Add compatible metadata instead of a format migration.
+- Exclude live network, Bluetooth, audio, process, storage, security, date, news, and general app controls.
+- Add a fixed `Apply manually` section below Settings search.
+- Provide Restart shell, Reload Hyprland, and Restart terminals actions.
+- Ask for confirmation only before Restart shell. Disable every action while it runs.
+- Use preview mode by default for all new mutating CLI commands. Require `--apply` for changes.
+- Update `preview.png` and public screenshots only after all implementation phases pass.
+- Publish one squashed 0.41.0 commit directly to `main`, without a force push.
+
+### I0. Establish the baseline
+
+- [x] Create the local `feature/portable-controls-0.41` branch from the current clean `main` branch.
+- [x] Confirm this checklist and add the release phases to `ROADMAP.md`.
+- [x] Record the baseline commit, version, worktree state, and validation results in the phase report.
+- [x] Run `./tests/run-all.sh`.
+- [x] Run `omarchy plugin validate .`.
+- [x] Run `qmllint -I "$OMARCHY_PATH/shell" *.qml components/*.qml`.
+- [x] Do not change `preview.png`, public screenshots, or the version.
+- [x] Commit the phase as `docs: plan portable control expansion`.
+
+Acceptance: the branch starts from a known clean baseline, all existing checks pass, and the worktree is clean.
+
+Recommended next agent: `gpt-6-astra` with `xhigh` reasoning. The agent must define the data contract and guard
+the compatibility boundary before UI expansion.
+
+### I1. Defer Settings data and extend the contract
+
+- [x] Add `replicant status --json --defer-settings` or an equivalent stable interface.
+- [x] Load Settings data only when the user opens the Settings tab.
+- [x] Cache and reuse the deferred result during the active Replicant session.
+- [x] Add compatible setting metadata for domain, file, entry, scope, and apply action.
+- [x] Preserve existing setting identifiers, values, restore behavior, and public JSON fields.
+- [x] Add state tests for initial load, deferred load, cache reuse, failure, and retry.
+- [x] Add CLI contract tests for old and new consumers.
+- [x] Add performance samples with five cold runs and report the median.
+- [x] Reduce the initial load time by at least 50 percent from the I0 baseline.
+- [x] Keep the final initial-load median at or below 2.5 seconds on this machine.
+- [x] Run the settings, state, benchmark, QML, and full regression suites.
+- [x] Commit the phase as `perf: defer settings data until requested`.
+
+Acceptance: deferred loading is compatible, measured, covered by tests, and does not change restore results.
+
+Recommended next agent: `gpt-6.1-sol` with `high` reasoning. The next phase is broad UI and command integration
+work with a stable contract.
+
+### I2. Add navigation and manual apply actions
+
+- [x] Add the five Settings domains without adding a fifth primary tab.
+- [x] Preserve global search, the customized filter, and keyboard navigation across domains.
+- [x] Add a direct link from each applicable setting to its owner in Configs.
+- [x] Add `replicant apply shell`, `replicant apply hyprland`, and `replicant apply terminal`.
+- [x] Make every apply command show its plan unless the caller passes `--apply`.
+- [x] Use the official Omarchy shell restart command for Restart shell.
+- [x] Use the supported Hyprland reload command for Reload Hyprland.
+- [x] Use the supported Omarchy action for terminal restart or refresh.
+- [x] Add the three actions to the fixed `Apply manually` section.
+- [x] Ask for confirmation only before Restart shell.
+- [x] Disable all apply actions while one action runs.
+- [x] Show command output, exit status, and a concise failure message in the UI.
+- [x] Test missing processes, busy state, Hyprland errors, detached processes, and command failures.
+- [x] Run CLI, usability, QML, `qmllint`, and full regression tests.
+- [x] Commit the phase as `feat: add settings navigation and apply actions`.
+
+Acceptance: every action uses a supported command, fails clearly, and never starts twice from repeated input.
+
+Recommended next agent: `gpt-6.1-sol` with `high` reasoning. The next phase needs careful schema and UI work,
+but its scope is limited to scalar controls.
+
+### I3. Expand window and effect settings
+
+- [x] Add floating and workspace gap controls.
+- [x] Add border-inside, rounding curve, and snapping controls.
+- [x] Add active-window and fullscreen opacity controls.
+- [x] Add dim controls for special workspaces, surrounding areas, and modal windows.
+- [x] Add animation speed and animation wrap controls.
+- [x] Add blur size, passes, noise, contrast, brightness, vibrancy, popup, xray, and vibrancy-darkness controls.
+- [x] Add shadow range, power, scale, and sharpness controls.
+- [x] Add glow enablement, range, and power controls.
+- [x] Confirm each type, bound, dependency, default, owner, and config route independently.
+- [x] Do not infer a control only because OmaControl exposes it.
+- [x] Test consecutive writes, invalid types, invalid bounds, dependencies, rollback, and config errors.
+- [x] Run settings, save, benchmark, QML, `qmllint`, and full regression tests.
+- [x] Commit the phase as `feat: expand window and effect settings`.
+
+Acceptance: all controls map to verified Omarchy or Hyprland configuration and preserve unrelated bytes.
+
+Verified exclusions (no Hyprland 0.56.2 route, confirmed with `hyprctl getoption` on the live compositor):
+
+- border-inside: no such option in 0.56.2 (`general:border_inside`, `decoration:border_size` both absent). The closest match, `border_part_of_window`, exists only in later Hyprland.
+- animation speed: no scalar route in 0.56.2 (per-leaf speeds live in `hl.animation()` calls, which are structured animation data, not scalar config). Workspace wraparound ships as the wrap control.
+
+Acceptance: all controls map to verified Omarchy or Hyprland configuration and preserve unrelated bytes.
+
+Recommended next agent: `gpt-6-astra` with `max` reasoning. This phase expands many coupled settings and needs
+a strict audit of defaults, dependencies, and compatibility.
+
+### I4. Complete portable scalar settings
+
+- [x] Add Dwindle ratio, forced split, preserve split, smart split, and split multiplier controls.
+- [x] Add Master factor, new-window status, and orientation controls.
+- [x] Add the Scrolling fullscreen-one-column control.
+- [x] Add group-bar activation, height, indicator, titles, rounding, gradients, stacked mode, and font-size controls.
+- [x] Add keyboard XKB variant and options controls.
+- [x] Add pointer focus policy controls.
+- [x] Add the active font control through the official Omarchy command.
+- [x] Add the bar center-anchor control.
+- [x] Exclude independent wallpaper and default controls without stable portable state.
+- [x] Exclude per-device rules from this scalar phase.
+- [x] Test every new value type, range, dependency, owner, save, restore, and rollback route.
+- [x] Confirm that the final scalar-control count is between 95 and 105.
+- [x] Run settings, save, restore, benchmark, QML, `qmllint`, and full regression tests.
+- [x] Commit the phase as `feat: complete portable scalar settings`.
+
+Acceptance: the Settings catalog reaches the target range without unstable or machine-specific controls.
+
+Verified exclusions (no portable scalar route, confirmed with `hyprctl getoption` on the live compositor):
+
+- Scrolling fullscreen-one-column: no such option in 0.56.2 (single-column view is `scrolling:column_width` at 0.97, a comment in the shipped config, not a scalar of its own).
+- Group colors (`group:groupbar:col.*`, `text_color`) and `gradient_rounding`: colors are not portable scalars; one rounding control is enough for the catalog.
+- Wallpaper and file-default controls: no stable portable state (wallpaper is per-machine taste, defaults live in `~/.local/state` outside the repo format).
+- Per-device `hl.device` rules: excluded like before; the panel only warns without naming hardware.
+
+Recommended next agent: `gpt-6-astra` with `max` reasoning. Structured editors introduce parsers, mutation
+boundaries, and byte-preservation risks.
+
+### I5. Add portable structured editors
+
+- [x] Add shortcut operations to create, disable, restore, and remove entries.
+- [x] Add Compose operations to list, add, and remove entries.
+- [x] Add bar-layout operations to move, enable, and disable widgets and add spacers.
+- [x] Store Replicant-owned structured changes in explicit managed blocks.
+- [x] Reject changes when managed block markers are missing, duplicated, nested, or damaged.
+- [x] Preserve all external bytes outside the managed blocks.
+- [x] Make every structured mutation show a preview before it changes a file.
+- [x] Save the correct owner file and restore the same structure through the existing transaction path.
+- [x] Test duplicates, special characters, empty lists, damaged markers, rollback, and interrupted writes.
+- [x] Run CLI, core, save, restore, usability, QML, `qmllint`, and full regression tests.
+- [x] Commit the phase as `feat: add portable structured editors`.
+
+Acceptance: structured editors are deterministic, reversible, and unable to overwrite unmanaged content.
+
+Notes (verified with the live machine and `hyprctl getoption`):
+
+- New CLI surface: `shortcut`, `compose`, and `bar-layout`, each with `list` and
+  preview-first mutations (`--apply` writes, `--dry-run` always wins). The
+  panel needs no new tab: these files already render as Configs rows with
+  owner links from Settings.
+- Bindings apply with `hyprctl reload` after a `luac -p` syntax check, with
+  the same backup, configerrors comparison, and rollback discipline as the
+  settings writer. Compose applies with `omarchy-restart-xcompose`. The bar
+  layout needs no reload: the shell watches `shell.json`.
+- Spacers are `{"id":"omarchy.spacer","size":N}` (default 12). A widget is an
+  id or a `section:index` pair, the only way to name a spacer.
+- `bar-layout enable` refuses duplicates and needs an explicit `--section`;
+  `disable` removes the entry from the bar (the plugin stays installed).
+
+Recommended next agent: `gpt-6-astra` with `xhigh` reasoning. The next phase combines shared and local state
+and needs careful scope modeling.
+
+### I6. Add profile-aware workspace and display editors
+
+- [x] Add workspace count, names, layout, and keep-empty controls.
+- [x] Store application workspace rules as shared state.
+- [x] Store monitor assignments as local profile state.
+- [x] Add display resolution, refresh rate, scale, rotation, position, mirror, VRR, and HDR controls.
+- [x] Show availability and capability checks before the user can apply display options.
+- [x] Store the default monitor and dependent mappings in the machine profile.
+- [x] Keep portable application rules separate from physical monitor identifiers.
+- [x] Exclude private physical identifiers from public output, fixtures, screenshots, and logs.
+- [x] Test two simulated machines with different profiles and display capabilities.
+- [x] Test scope conflicts, removed monitors, invalid modes, restore, rollback, and transaction failures.
+- [x] Run scope, state, restore, transaction, usability, QML, `qmllint`, and full regression tests.
+- [x] Commit the phase as `feat: add profile aware desktop editors`.
+
+Acceptance: shared rules travel between machines, local mappings do not leak, and invalid display plans cannot apply.
+
+Notes (verified with `hyprctl getoption`, `hyprctl monitors -j`, and the wiki field tables):
+
+- New CLI surface: `workspace` (structure and app rules shared in
+  `hypr/hyprland.lua`; assignments per-profile in `hypr/monitors.lua`) and
+  `display` (per-profile entries in `hypr/monitors.lua`). Every mutation
+  previews first and writes only with `--apply`.
+- `workspace define` merges: a partial define changes only the named fields.
+  `count` keeps 1..N alive and drops keep-empty above N, preserving names.
+  `assign --default` moves the default flag within one monitor.
+- `display set` merges into the managed entry and refuses modes the
+  connected monitor does not offer, after printing the capability. `disable`
+  also creates the entry (dock/undock cleanup); `remove` deletes it.
+- Connectors (`eDP-9`) are the portable key; `desc:` serials never print
+  (lists, previews, and JSON all redact them) and fixtures use fake ones.
+
+Recommended next agent: `gpt-6.1-sol` with `high` reasoning. The next phase is a bounded reconciliation flow
+that should reuse established package and terminal interfaces.
+
+### I7. Reconcile portable software inventories
+
+- [x] Select the latest saved machine as the default source and let the user choose another source.
+- [x] Show missing official repository packages and AUR packages separately.
+- [x] Exclude the Omarchy base package set and ignored packages.
+- [x] Do not propose removals.
+- [x] Let the user select packages before installation.
+- [x] Show the exact official Omarchy command before execution.
+- [x] Run installation in a visible terminal through supported Omarchy interfaces.
+- [x] Show plugins and themes as explicit items with origin information and review steps.
+- [x] Present reconciliation inside Restore. Do not turn Replicant into a general package manager.
+- [x] Test empty inventories, removed source machines, AUR items, ignored packages, and partial failure.
+- [x] Run inventory, CLI, restore, usability, QML, `qmllint`, and full regression tests.
+- [x] Commit the phase as `feat: reconcile software inventories`.
+
+Acceptance: reconciliation only installs selected missing portable software and never removes packages.
+
+Notes (verified against the live repo, `pacman -Q`, and `omarchy pkg add/aur add`):
+
+- New `reconcile` command: preview names the newest-saved source machine
+  (or `--from`), lists missing official and AUR packages separately with
+  the exact install commands, then plugins and themes with origins and the
+  `install-plugin --check` review step. Base and ignored sets are filtered
+  on both sides, and nothing is ever proposed for removal.
+- `reconcile install <pkgs...> [--aur] [--apply]` validates every name
+  against the missing set, prints `Would run: omarchy pkg add ...`, and
+  runs it attached (visible) only with `--apply`. Plugins keep their
+  existing `--check`/pinned-revision review flow.
+- The Restore tab gains a "Packages to install" card from the new
+  `pending_packages` status field, beside the existing plugins card.
+- Plugin and theme reconciliation stays source-pinned in the preview, while
+  the panel's pending list keeps its any-machine semantics.
+
+Recommended next agent: `gpt-6-astra` with `max` reasoning. The final phase must audit the complete product,
+release history, publication, CI, and active installation.
+
+### I8. Audit, release, publish, and install
+
+- [x] Confirm that every earlier phase is checked and has an `OK` report.
+- [x] Audit security, privacy, compatibility, performance, accessibility, and keyboard behavior.
+- [x] Update `README.md`, `docs/SPEC.md`, `ROADMAP.md`, and this file.
+- [x] Update public screenshots and `preview.png` only after the complete implementation passes.
+- [x] Confirm that all public version labels show 0.41.0.
+- [x] Set the manifest version to 0.41.0.
+- [ ] Run the complete verification matrix on the feature branch.
+- [ ] Test install, disable, enable, shell restart, and remove in a disposable lifecycle environment.
+- [ ] Verify Settings, manual apply actions, profiles, save, and restore after installation.
+- [ ] Keep the local feature branch as a recovery reference.
+- [ ] Squash the feature work into `main` as one commit: `feat: expand portable Omarchy controls`.
+- [ ] Run the complete verification matrix again on the squashed `main` branch.
+- [ ] Run `git fetch origin main` and stop if the remote branch advanced.
+- [ ] Push directly to `main` without a force push.
+- [ ] Wait for all required GitHub Actions checks to pass.
+- [ ] Update the active plugin through the official Omarchy plugin workflow.
+- [ ] Restart the shell and verify version, enabled state, and config errors.
+- [ ] Do not delete or reinstall private user data during final installation checks.
+
+Acceptance: local `main`, remote `main`, CI, and the active installation all use the same verified 0.41.0 release.
+
+### Phase report protocol
+
+Every phase report must contain these fields:
+
+- `Status: OK` when every phase requirement and test passes.
+- The phase objective and the completed checklist items.
+- The local commit SHA.
+- Each test command, result, and relevant test count.
+- Confirmation that `git diff --check` passes.
+- Confirmation that `git status --short` is empty after the commit.
+- Remaining risks and pending work.
+- The recommended next model and reasoning level, with one concise reason.
+
+If a phase fails, report `Status: NO OK`. Keep its checklist items unchecked. Do not create a commit that contains
+known failing work. State whether the failure existed at the I0 baseline or is a new regression.
+
+### Mandatory final verification
+
+Run these commands in phase I8:
+
+```bash
+git diff --check
+./tests/run-all.sh
+omarchy plugin validate .
+qmllint -I "$OMARCHY_PATH/shell" *.qml components/*.qml
+tests/check-version-bump.sh --base origin/main
+```
+
+The final verification must also cover these scenarios:
+
+- Change, save, push, clone, and restore on simulated source and target machines.
+- Shared, local, and secret scope behavior.
+- Missing files, invalid values, command failures, interrupted writes, and rollback.
+- Keyboard-only use and accessibility labels.
+- Screenshots at the supported display scales.
+- The disposable plugin lifecycle.
+- All required GitHub Actions checks.
+- The active installation, its enabled state, its version, and shell config errors.
+
+### Release assumptions
+
+- Publish directly to `main` without a force push.
+- Use 0.41.0 as the target version.
+- Preserve the current repository format.
+- Change `preview.png` only in phase I8.
+- Keep private data and the active installation outside development tests.
+- Exclude controls that do not have stable portable state or a supported apply path.
+- Reconcile selected missing software, but do not add general package-manager behavior.

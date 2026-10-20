@@ -499,6 +499,75 @@ cmd_settings() {
     ""'
 }
 
+# cmd_apply <shell|hyprland|terminal> [--apply]: run what a settings change
+# needs afterwards. A dry run by default, like every command that acts here:
+# it prints the exact command and touches nothing. Nothing here writes to the
+# repo, so no lock is taken.
+cmd_apply() {
+  local target="${1:-}"; shift || true
+  load_core
+  local DRY=1 arg
+  for arg in "$@"; do
+    case "$arg" in
+      --apply) DRY=0 ;;
+      --dry-run) DRY=1 ;;
+      *) fail "usage: replicant apply <shell|hyprland|terminal> [--apply]" ;;
+    esac
+  done
+  case "$target" in
+    shell|hyprland|terminal) ;;
+    *) fail "usage: replicant apply <shell|hyprland|terminal> [--apply]" ;;
+  esac
+  if (( DRY )); then
+    info "would run: $(apply_command_for "$target")"
+    [[ "$target" == shell ]] && info "the shell restarts detached; the panel closes with it."
+    echo >&2; skip "dry-run — nothing was touched. Repeat with --apply"
+    return 0
+  fi
+  case "$target" in
+    shell)
+      command -v omarchy >/dev/null 2>&1 \
+        || fail "apply shell: omarchy is not available on this machine — nothing was restarted."
+      setsid -f omarchy restart shell </dev/null >/dev/null 2>&1 \
+        || fail "apply shell: could not start 'omarchy restart shell'."
+      info "shell restart started (detached). The shell — and this panel — closes and comes back."
+      ;;
+    hyprland)
+      command -v hyprctl >/dev/null 2>&1 \
+        || fail "apply hyprland: hyprctl is not available — Hyprland is not running here, and nothing was reloaded."
+      local out rc=0
+      out=$(hyprctl reload 2>&1) || rc=$?
+      (( rc == 0 )) \
+        || fail "apply hyprland: 'hyprctl reload' failed (exit $rc): ${out:-no output} — nothing was reloaded."
+      local errs
+      errs=$(hyprctl configerrors 2>/dev/null | grep -v '^no errors' || true)
+      if [[ -n "$errs" ]]; then
+        fail "apply hyprland: reloaded, but Hyprland reports config errors: $errs"
+      fi
+      info "Hyprland reloaded with no config errors."
+      ;;
+    terminal)
+      command -v omarchy >/dev/null 2>&1 \
+        || fail "apply terminal: omarchy is not available on this machine — nothing was restarted."
+      local tout trc=0
+      tout=$(omarchy restart terminal 2>&1) || trc=$?
+      (( trc == 0 )) \
+        || fail "apply terminal: 'omarchy restart terminal' failed (exit $trc): ${tout:-no output}"
+      [[ -n "$tout" ]] && info "$tout"
+      info "Terminals reloaded."
+      ;;
+  esac
+}
+
+# apply_command_for <target>: the exact command apply --apply would run. One
+# place, so the preview and the action can never disagree.
+apply_command_for() {
+  case "$1" in
+    shell) printf 'omarchy restart shell' ;;
+    hyprland) printf 'hyprctl reload' ;;
+    terminal) printf 'omarchy restart terminal' ;;
+  esac
+}
 # cmd_scope <id> <shared|profile|off> changes one Configs row. One scope change, one
 # commit of exactly that entry's paths: staging the directories would sweep
 # every unrelated dotfile that happened to be pending into a commit whose
@@ -805,6 +874,613 @@ cmd_shortcuts() {
   fi
   printf '\n\033[1mActive right now\033[0m  (%s bindings, defaults included)\n' "$(jq -r '.active_count' <<<"$json")"
   jq -r '.active[] | "  \(.key)\t\(.description)"' <<<"$json" | expand -t 34
+}
+
+# Structured editors: keybindings, compose sequences, and the bar layout.
+# Every mutation prints its unified preview first and writes only with
+# --apply; --dry-run always wins over --apply. A save follows a successful
+# write through the owning tracked entry, the way `set` does.
+structured_effective_apply() {
+  local a
+  for a in "$@"; do [[ "$a" == "--dry-run" ]] && return 1; done
+  for a in "$@"; do [[ "$a" == "--apply" ]] && return 0; done
+  return 1
+}
+
+structured_without_flags() {
+  local a
+  for a in "$@"; do
+    [[ "$a" == "--apply" || "$a" == "--dry-run" ]] && continue
+    printf '%s\n' "$a"
+  done
+}
+
+# structured_cli_save <owner-rel> <subject> — save the owning entry after a
+# structured write, warning instead of saving when its scope is off.
+structured_cli_save() {
+  local owner="$1" subject="$2" scope rc=0
+  scope=$(scope_for "$owner" 2>/dev/null || echo shared)
+  if [[ "$scope" == "off" ]]; then
+    warn "Applied locally, not saved — $owner is switched off."
+    warn "The repo keeps what it already has. Set $owner to Shared to save it."
+    warn "Retry: replicant scope $owner shared"
+    return 0
+  fi
+  cmd_save --id "$owner" -m "$subject" || rc=$?
+  if (( rc != 0 )); then
+    echo "The change is on this machine but was not saved. Retry: replicant save --id $owner -m \"$subject\"" >&2
+    return "$rc"
+  fi
+}
+
+# structured_run <kind> <build-fn> <file> <owner> <subject> <adopt-fn> [adopt-arg]
+# — build the candidate, preview it, and adopt on --apply. The build function
+# prints the candidate full file to stdout. Returns 0 on preview or success.
+structured_run() {
+  local kind="$1" build="$2" file="$3" owner="$4" subject="$5" adopt="$6" hook="${7:-}"
+  local inner cand old
+  inner=$(mktemp) || fail "could not stage the $kind change"
+  cand=$(mktemp) || { rm -f "$inner"; fail "could not stage the $kind change"; }
+  # shellcheck disable=SC2064
+  trap "rm -f '$inner' '$cand'" RETURN
+  "$build" > "$cand" || { local rc=$?; trap - RETURN; rm -f "$inner" "$cand"; return "$rc"; }
+  if [[ -f "$file" ]] && cmp -s -- "$file" "$cand"; then
+    info "No change: $subject is already there."
+    trap - RETURN; rm -f "$inner" "$cand"
+    return 0
+  fi
+  old="$file"
+  [[ -f "$old" ]] || old=/dev/null
+  structured_preview "$file" "$old" "$cand"
+  if ! structured_effective_apply "${STRUCTURED_ARGS[@]}"; then
+    info "Preview only — nothing changed. Pass --apply to write it."
+    trap - RETURN; rm -f "$inner" "$cand"
+    return 0
+  fi
+  if [[ "$adopt" == "lua" ]]; then
+    structured_adopt_lua "$file" "$cand" "$hook" || { local rc=$?; trap - RETURN; rm -f "$inner" "$cand"; return "$rc"; }
+  elif [[ "$adopt" == "plain" ]]; then
+    structured_adopt_plain "$file" "$cand" "$hook" || { local rc=$?; trap - RETURN; rm -f "$inner" "$cand"; return "$rc"; }
+  elif [[ "$adopt" == "json" ]]; then
+    backup_before_write "$file" || { trap - RETURN; rm -f "$inner" "$cand"; fail "could not back up $file"; }
+    mkdir -p "$(dirname -- "$file")" || { trap - RETURN; rm -f "$inner" "$cand"; fail "could not write $file"; }
+    cp -a -- "$cand" "$file" || { trap - RETURN; rm -f "$inner" "$cand"; fail "could not write $file"; }
+    invalidate_file_maps
+  fi
+  ok "Applied: $subject."
+  trap - RETURN; rm -f "$inner" "$cand"
+  structured_cli_save "$owner" "$subject"
+}
+
+cmd_shortcut() {
+  load_core
+  local sub="${1:-}"; [[ -n "$sub" ]] || fail "usage: replicant shortcut list|add|disable|restore|remove ... (try --help)"
+  shift || true
+  STRUCTURED_ARGS=("$@")
+  case "$sub" in
+    list) structured_shortcut_list "$@" ;;
+    add|disable|restore|remove) structured_shortcut_mutate "$sub" "$@" ;;
+    *) fail "usage: replicant shortcut list|add|disable|restore|remove ... (try --help)" ;;
+  esac
+}
+
+# structured_shortcut_mutate <op> [args] — parse, preview, and optionally
+# adopt a shortcut change, then save hypr/bindings.lua.
+structured_shortcut_mutate() {
+  local op="$1"; shift
+  local -a raw=() args=()
+  local a desc="" keys="" cmd=""
+  for a in "$@"; do raw+=("$a"); done
+  while (( ${#raw[@]} )); do case "${raw[0]}" in
+    --desc) desc="${raw[1]:-}"; raw=("${raw[@]:2}") ;;
+    --apply|--dry-run) args+=("${raw[0]}"); raw=("${raw[@]:1}") ;;
+    *) args+=("${raw[0]}"); raw=("${raw[@]:1}") ;;
+  esac; done
+  local file owner subject
+  file=$(structured_bindings_file); owner="hypr/bindings.lua"
+  case "$op" in
+    add)
+      (( ${#args[@]} >= 2 )) || fail "usage: replicant shortcut add <keys> <command> [--desc text] [--apply]"
+      keys="${args[0]}"; cmd="${args[1]}"
+      subject="shortcuts: add $keys"
+      structured_shortcut_add_build() {
+        local inner cand
+        inner=$(mktemp) || return 1
+        cand=$(mktemp) || { rm -f "$inner"; return 1; }
+        structured_shortcut_build add "$keys" "$desc" "$cmd" > "$inner" || { local rc=$?; rm -f "$inner" "$cand"; return "$rc"; }
+        structured_block_candidate "$file" "$STRUCT_SHORT_START" "$STRUCT_SHORT_END" "$inner" "$cand" \
+          "-- Personal keybindings live here. Replicant owns only the managed block below." \
+          || { local rc=$?; rm -f "$inner" "$cand"; return "$rc"; }
+        cat -- "$cand"; rm -f "$inner" "$cand"
+      }
+      ;;
+    disable)
+      (( ${#args[@]} >= 1 )) || fail "usage: replicant shortcut disable <keys> [--apply]"
+      keys="${args[0]}"
+      subject="shortcuts: disable $keys"
+      structured_shortcut_add_build() {
+        local inner cand
+        inner=$(mktemp) || return 1
+        cand=$(mktemp) || { rm -f "$inner"; return 1; }
+        structured_shortcut_build disable "$keys" > "$inner" || { local rc=$?; rm -f "$inner" "$cand"; return "$rc"; }
+        structured_block_candidate "$file" "$STRUCT_SHORT_START" "$STRUCT_SHORT_END" "$inner" "$cand" \
+          "-- Personal keybindings live here. Replicant owns only the managed block below." \
+          || { local rc=$?; rm -f "$inner" "$cand"; return "$rc"; }
+        cat -- "$cand"; rm -f "$inner" "$cand"
+      }
+      ;;
+    restore)
+      (( ${#args[@]} >= 1 )) || fail "usage: replicant shortcut restore <keys> [--apply]"
+      keys="${args[0]}"
+      subject="shortcuts: restore $keys"
+      structured_shortcut_add_build() {
+        local inner cand
+        inner=$(mktemp) || return 1
+        cand=$(mktemp) || { rm -f "$inner"; return 1; }
+        structured_shortcut_build restore "$keys" > "$inner" || { local rc=$?; rm -f "$inner" "$cand"; return "$rc"; }
+        structured_block_candidate "$file" "$STRUCT_SHORT_START" "$STRUCT_SHORT_END" "$inner" "$cand" \
+          "-- Personal keybindings live here. Replicant owns only the managed block below." \
+          || { local rc=$?; rm -f "$inner" "$cand"; return "$rc"; }
+        cat -- "$cand"; rm -f "$inner" "$cand"
+      }
+      ;;
+    remove)
+      (( ${#args[@]} >= 1 )) || fail "usage: replicant shortcut remove <keys> [--apply]"
+      keys="${args[0]}"
+      subject="shortcuts: remove $keys"
+      structured_shortcut_add_build() {
+        local inner cand
+        inner=$(mktemp) || return 1
+        cand=$(mktemp) || { rm -f "$inner"; return 1; }
+        structured_shortcut_build remove "$keys" > "$inner" || { local rc=$?; rm -f "$inner" "$cand"; return "$rc"; }
+        structured_block_candidate "$file" "$STRUCT_SHORT_START" "$STRUCT_SHORT_END" "$inner" "$cand" \
+          "-- Personal keybindings live here. Replicant owns only the managed block below." \
+          || { local rc=$?; rm -f "$inner" "$cand"; return "$rc"; }
+        cat -- "$cand"; rm -f "$inner" "$cand"
+      }
+      ;;
+  esac
+  STRUCTURED_ARGS=()
+  # The apply decision from the flags the user passed.
+  for a in "$@"; do
+    [[ "$a" == "--apply" || "$a" == "--dry-run" ]] && STRUCTURED_ARGS+=("$a")
+  done
+  structured_run shortcut structured_shortcut_add_build "$file" "$owner" "$subject" lua "hyprctl reload"
+}
+
+cmd_compose() {
+  load_core
+  local sub="${1:-}"; [[ -n "$sub" ]] || fail "usage: replicant compose list|add|remove ... (try --help)"
+  shift || true
+  case "$sub" in
+    list) structured_compose_list "$@" ;;
+    add|remove) structured_compose_mutate "$sub" "$@" ;;
+    *) fail "usage: replicant compose list|add|remove ... (try --help)" ;;
+  esac
+}
+
+# structured_compose_mutate <op> [args] — parse, preview, and optionally
+# adopt a compose change, then save home/XCompose.
+structured_compose_mutate() {
+  local op="$1"; shift
+  local -a args=()
+  local a seq="" result=""
+  for a in "$@"; do
+    [[ "$a" == "--apply" || "$a" == "--dry-run" ]] && args+=("$a") || true
+  done
+  local -a pos=()
+  for a in "$@"; do
+    [[ "$a" == "--apply" || "$a" == "--dry-run" ]] && continue
+    pos+=("$a")
+  done
+  local file owner subject
+  file=$(structured_compose_file); owner="home/XCompose"
+  case "$op" in
+    add)
+      (( ${#pos[@]} >= 2 )) || fail "usage: replicant compose add '<sequence>' '<result>' [--apply]"
+      seq="${pos[0]}"; result="${pos[1]}"
+      subject="compose: add $seq"
+      ;;
+    remove)
+      (( ${#pos[@]} >= 1 )) || fail "usage: replicant compose remove '<sequence>' [--apply]"
+      seq="${pos[0]}"
+      subject="compose: remove $seq"
+      ;;
+  esac
+  structured_compose_add_build() {
+    local inner cand
+    inner=$(mktemp) || return 1
+    cand=$(mktemp) || { rm -f "$inner"; return 1; }
+    if [[ "$op" == "add" ]]; then
+      structured_compose_build add "$seq" "$result" > "$inner" || { local rc=$?; rm -f "$inner" "$cand"; return "$rc"; }
+    else
+      structured_compose_build remove "$seq" > "$inner" || { local rc=$?; rm -f "$inner" "$cand"; return "$rc"; }
+    fi
+    structured_block_candidate "$file" "$STRUCT_COMP_START" "$STRUCT_COMP_END" "$inner" "$cand" \
+      "$(printf '# Personal compose sequences live here. Replicant owns only the managed block below.\ninclude "/usr/share/omarchy/default/xcompose"')" \
+      || { local rc=$?; rm -f "$inner" "$cand"; return "$rc"; }
+    cat -- "$cand"; rm -f "$inner" "$cand"
+  }
+  STRUCTURED_ARGS=("${args[@]}")
+  structured_run compose structured_compose_add_build "$file" "$owner" "$subject" plain "omarchy-restart-xcompose"
+}
+
+cmd_bar_layout() {
+  load_core
+  local sub="${1:-}"; [[ -n "$sub" ]] || fail "usage: replicant bar-layout list|move|enable|disable|spacer ... (try --help)"
+  shift || true
+  case "$sub" in
+    list) structured_bar_list "$@" ;;
+    move|enable|disable|spacer) structured_bar_mutate "$sub" "$@" ;;
+    *) fail "usage: replicant bar-layout list|move|enable|disable|spacer ... (try --help)" ;;
+  esac
+}
+
+# structured_bar_mutate <op> [args] — parse, preview, and optionally adopt a
+# bar layout change, then save omarchy/shell.json. The shell watches the
+# file, so no reload command is needed.
+structured_bar_mutate() {
+  local op="$1"; shift
+  local -a args=()
+  local a
+  for a in "$@"; do
+    [[ "$a" == "--apply" || "$a" == "--dry-run" ]] && args+=("$a") || true
+  done
+  local -a pos=()
+  for a in "$@"; do
+    [[ "$a" == "--apply" || "$a" == "--dry-run" ]] && continue
+    pos+=("$a")
+  done
+  local file owner subject
+  file=$(structured_shell_file); owner="omarchy/shell.json"
+  case "$op" in
+    move)
+      (( ${#pos[@]} >= 1 )) || fail "usage: replicant bar-layout move <widget> --section <s> [--before x|--after x|--index n] [--apply]"
+      subject="bar: move ${pos[0]}"
+      ;;
+    enable)
+      (( ${#pos[@]} >= 1 )) || fail "usage: replicant bar-layout enable <id> --section <s> [--apply]"
+      subject="bar: enable ${pos[0]}"
+      ;;
+    disable)
+      (( ${#pos[@]} >= 1 )) || fail "usage: replicant bar-layout disable <widget> [--apply]"
+      subject="bar: disable ${pos[0]}"
+      ;;
+    spacer)
+      subject="bar: add spacer"
+      ;;
+  esac
+  STRUCTURED_ARGS=("${args[@]}")
+  # Pass the placement options through: they are positional-or-flag args the
+  # builder parses itself.
+  local -a passthrough=()
+  for a in "$@"; do
+    [[ "$a" == "--apply" || "$a" == "--dry-run" ]] && continue
+    passthrough+=("$a")
+  done
+  structured_bar_add_build() {
+    structured_bar_build "$op" "${passthrough[@]}"
+  }
+  structured_run bar-layout structured_bar_add_build "$file" "$owner" "$subject" json
+}
+
+cmd_workspace() {
+  load_core
+  local sub="${1:-}"; [[ -n "$sub" ]] || fail "usage: replicant workspace list|define|undefine|count|app-add|app-remove|assign|unassign ... (try --help)"
+  shift || true
+  case "$sub" in
+    list) desktop_workspace_list "$@" ;;
+    define|undefine|count|app-add|app-remove|assign|unassign) desktop_workspace_mutate "$sub" "$@" ;;
+    *) fail "usage: replicant workspace list|define|undefine|count|app-add|app-remove|assign|unassign ... (try --help)" ;;
+  esac
+}
+
+# desktop_workspace_mutate <op> [args] — parse, preview, and optionally adopt
+# a workspace change, then save the owning entry. Structure and app rules
+# save hypr/hyprland.lua (shared); assignments save hypr/monitors.lua.
+desktop_workspace_mutate() {
+  local op="$1"; shift
+  local -a flags=() pos=()
+  local a
+  for a in "$@"; do
+    if [[ "$a" == "--apply" || "$a" == "--dry-run" ]]; then flags+=("$a"); else pos+=("$a"); fi
+  done
+  local -a opts=()
+  local name="" layout="" persistent="" def=false
+  while (( ${#pos[@]} )); do case "${pos[0]}" in
+    --name) name="${pos[1]:-}"; pos=("${pos[@]:2}") ;;
+    --layout) layout="${pos[1]:-}"; pos=("${pos[@]:2}") ;;
+    --persistent) persistent="${pos[1]:-}"; pos=("${pos[@]:2}") ;;
+    --default) def=true; pos=("${pos[@]:1}") ;;
+    *) opts+=("${pos[0]}"); pos=("${pos[@]:1}") ;;
+  esac; done
+  local file owner subject
+  case "$op" in
+    define)
+      (( ${#opts[@]} >= 1 )) || fail "usage: replicant workspace define <n> [--name X] [--layout L] [--persistent on|off] [--apply]"
+      file=$(desktop_hyprland_file); owner="hypr/hyprland.lua"; subject="workspaces: define ${opts[0]}"
+      desktop_ws_add_build() {
+        local inner cand
+        inner=$(mktemp) || return 1
+        cand=$(mktemp) || { rm -f "$inner"; return 1; }
+        desktop_ws_build define "${opts[0]}" "$name" "$layout" "$persistent" > "$inner" \
+          || { local rc=$?; rm -f "$inner" "$cand"; return "$rc"; }
+        structured_block_candidate "$file" "$DESK_WS_START" "$DESK_WS_END" "$inner" "$cand" \
+          "-- Personal workspace structure lives here. Replicant owns only the managed block below." \
+          || { local rc=$?; rm -f "$inner" "$cand"; return "$rc"; }
+        cat -- "$cand"; rm -f "$inner" "$cand"
+      }
+      ;;
+    undefine)
+      (( ${#opts[@]} >= 1 )) || fail "usage: replicant workspace undefine <n> [--apply]"
+      file=$(desktop_hyprland_file); owner="hypr/hyprland.lua"; subject="workspaces: undefine ${opts[0]}"
+      # Orphaned app rules keep pointing at the workspace; say so before.
+      local apps orphan=""
+      apps=$(desktop_app_rows "$file" 2>/dev/null || true)
+      while IFS=$'\037' read -r c w mgd; do
+        [[ "$w" == "${opts[0]}" ]] || continue
+        orphan+="$c "
+      done <<<"$apps"
+      [[ -z "$orphan" ]] || warn "App rules still target workspace ${opts[0]}: ${orphan}(they open it on demand)"
+      desktop_ws_add_build() {
+        local inner cand
+        inner=$(mktemp) || return 1
+        cand=$(mktemp) || { rm -f "$inner"; return 1; }
+        desktop_ws_build undefine "${opts[0]}" > "$inner" \
+          || { local rc=$?; rm -f "$inner" "$cand"; return "$rc"; }
+        structured_block_candidate "$file" "$DESK_WS_START" "$DESK_WS_END" "$inner" "$cand" \
+          "-- Personal workspace structure lives here. Replicant owns only the managed block below." \
+          || { local rc=$?; rm -f "$inner" "$cand"; return "$rc"; }
+        cat -- "$cand"; rm -f "$inner" "$cand"
+      }
+      ;;
+    count)
+      (( ${#opts[@]} >= 1 )) || fail "usage: replicant workspace count <n> [--apply]"
+      file=$(desktop_hyprland_file); owner="hypr/hyprland.lua"; subject="workspaces: keep ${opts[0]}"
+      desktop_ws_add_build() {
+        local inner cand
+        inner=$(mktemp) || return 1
+        cand=$(mktemp) || { rm -f "$inner"; return 1; }
+        desktop_count_build "${opts[0]}" > "$inner" \
+          || { local rc=$?; rm -f "$inner" "$cand"; return "$rc"; }
+        structured_block_candidate "$file" "$DESK_WS_START" "$DESK_WS_END" "$inner" "$cand" \
+          "-- Personal workspace structure lives here. Replicant owns only the managed block below." \
+          || { local rc=$?; rm -f "$inner" "$cand"; return "$rc"; }
+        cat -- "$cand"; rm -f "$inner" "$cand"
+      }
+      ;;
+    app-add|app-remove)
+      if [[ "$op" == app-add ]]; then
+        (( ${#opts[@]} >= 2 )) || fail "usage: replicant workspace app-add <class> <n> [--apply]"
+      else
+        (( ${#opts[@]} >= 1 )) || fail "usage: replicant workspace app-remove <class> [--apply]"
+      fi
+      file=$(desktop_hyprland_file); owner="hypr/hyprland.lua"; subject="workspaces: $op ${opts[0]}"
+      # Opening on an undefined workspace works, but say so before.
+      if [[ "$op" == app-add ]]; then
+        local srows have=0
+        srows=$(desktop_ws_rows "$file" "$DESK_WS_START" "$DESK_WS_END" 2>/dev/null || true)
+        while IFS=$'\037' read -r w m d _p _n _l mgd; do
+          [[ "$w" == "${opts[1]}" && "$mgd" == "1" && -z "$m" ]] && have=1
+        done <<<"$srows"
+        (( have )) || warn "No workspace ${opts[1]} is defined — the app opens it on demand"
+      fi
+      desktop_ws_add_build() {
+        local inner cand
+        inner=$(mktemp) || return 1
+        cand=$(mktemp) || { rm -f "$inner"; return 1; }
+        desktop_app_build "$op" "${opts[0]}" "${opts[1]:-}" > "$inner" \
+          || { local rc=$?; rm -f "$inner" "$cand"; return "$rc"; }
+        structured_block_candidate "$file" "$DESK_APP_START" "$DESK_APP_END" "$inner" "$cand" \
+          "-- Personal application rules live here. Replicant owns only the managed block below." \
+          || { local rc=$?; rm -f "$inner" "$cand"; return "$rc"; }
+        cat -- "$cand"; rm -f "$inner" "$cand"
+      }
+      ;;
+    assign|unassign)
+      if [[ "$op" == assign ]]; then
+        (( ${#opts[@]} >= 2 )) || fail "usage: replicant workspace assign <n> <monitor> [--default] [--apply]"
+      else
+        (( ${#opts[@]} >= 1 )) || fail "usage: replicant workspace unassign <n> [--apply]"
+      fi
+      file=$(desktop_monitors_file); owner="hypr/monitors.lua"; subject="workspaces: $op ${opts[0]}"
+      if [[ "$op" == assign ]] && command -v hyprctl >/dev/null 2>&1; then
+        desktop_monitor_connected "${opts[1]}" 2>/dev/null \
+          || warn "'${opts[1]}' is not connected now — stored for when it appears"
+      fi
+      if [[ "$op" == assign && "$def" == true ]]; then
+        # One default per monitor: clear it from the other workspaces first.
+        local arows
+        arows=$(desktop_ws_rows "$file" "$DESK_ASG_START" "$DESK_ASG_END" 2>/dev/null || true)
+        while IFS=$'\037' read -r w m d _p _n _l mgd; do
+          [[ "$m" == "${opts[1]}" && "$d" == true && "$mgd" == 1 && "$w" != "${opts[0]}" ]] || continue
+          warn "Workspace $w was the default on ${opts[1]} — it no longer is"
+        done <<<"$arows"
+      fi
+      desktop_ws_add_build() {
+        local inner cand
+        inner=$(mktemp) || return 1
+        cand=$(mktemp) || { rm -f "$inner"; return 1; }
+        if [[ "$op" == assign ]]; then
+          desktop_asg_build assign "${opts[0]}" "${opts[1]}" "$([ "$def" == true ] && echo true || echo false)" > "$inner" \
+            || { local rc=$?; rm -f "$inner" "$cand"; return "$rc"; }
+        else
+          desktop_asg_build unassign "${opts[0]}" > "$inner" \
+            || { local rc=$?; rm -f "$inner" "$cand"; return "$rc"; }
+        fi
+        # Clearing a previous default for the same monitor happens here, so
+        # the preview shows the whole swap.
+        if [[ "$op" == assign && "$def" == true ]]; then
+          local filtered="$inner.filtered"
+          awk -v mon="${opts[1]}" -v ws="${opts[0]}" '
+            $0 ~ "workspace[[:space:]]*=[[:space:]]*\"" ws "\"" { print; next }
+            $0 ~ "monitor[[:space:]]*=[[:space:]]*\"" mon "\"" {
+              gsub(/,[[:space:]]*default[[:space:]]*=[[:space:]]*true/, "")
+              gsub(/default[[:space:]]*=[[:space:]]*true[[:space:]]*,?/, "")
+            }
+            { print }
+          ' "$inner" > "$filtered" 2>/dev/null && mv -- "$filtered" "$inner" || true
+        fi
+        structured_block_candidate "$file" "$DESK_ASG_START" "$DESK_ASG_END" "$inner" "$cand" \
+          "-- Personal workspace assignments live here. Replicant owns only the managed block below." \
+          || { local rc=$?; rm -f "$inner" "$cand"; return "$rc"; }
+        cat -- "$cand"; rm -f "$inner" "$cand"
+      }
+      ;;
+  esac
+  STRUCTURED_ARGS=("${flags[@]}")
+  export STRUCTURED_REDACT=1
+  structured_run workspace desktop_ws_add_build "$file" "$owner" "$subject" lua "hyprctl reload"
+  export STRUCTURED_REDACT=0
+}
+
+cmd_display() {
+  load_core
+  local sub="${1:-}"; [[ -n "$sub" ]] || fail "usage: replicant display list|set|enable|disable|remove|default ... (try --help)"
+  shift || true
+  case "$sub" in
+    list) desktop_display_list "$@" ;;
+    set|enable|disable|remove|default) desktop_display_mutate "$sub" "$@" ;;
+    *) fail "usage: replicant display list|set|enable|disable|remove|default ... (try --help)" ;;
+  esac
+}
+
+# desktop_display_mutate <op> [args] — parse, preview (with capability
+# notes), and optionally adopt a display change, then save hypr/monitors.lua.
+desktop_display_mutate() {
+  local op="$1"; shift
+  local -a flags=() pos=()
+  local a
+  for a in "$@"; do
+    if [[ "$a" == "--apply" || "$a" == "--dry-run" ]]; then flags+=("$a"); else pos+=("$a"); fi
+  done
+  local -a opts=()
+  local mode="" scale="" transform="" position="" mirror="" vrr="" hdr="" nohdr=""
+  while (( ${#pos[@]} )); do case "${pos[0]}" in
+    --mode) mode="${pos[1]:-}"; pos=("${pos[@]:2}") ;;
+    --scale) scale="${pos[1]:-}"; pos=("${pos[@]:2}") ;;
+    --rotation|--transform) transform="${pos[1]:-}"; pos=("${pos[@]:2}") ;;
+    --position) position="${pos[1]:-}"; pos=("${pos[@]:2}") ;;
+    --mirror) mirror="${pos[1]:-}"; pos=("${pos[@]:2}") ;;
+    --vrr) vrr="${pos[1]:-}"; pos=("${pos[@]:2}") ;;
+    --hdr) hdr=1; pos=("${pos[@]:1}") ;;
+    --no-hdr) nohdr=1; pos=("${pos[@]:1}") ;;
+    *) opts+=("${pos[0]}"); pos=("${pos[@]:1}") ;;
+  esac; done
+  (( ${#opts[@]} >= 1 )) || fail "usage: replicant display $op <monitor> [options] [--apply]"
+  local file owner subject
+  file=$(desktop_monitors_file); owner="hypr/monitors.lua"
+  subject="display: $op ${opts[0]}"
+  desktop_mon_add_build() {
+    local inner cand
+    inner=$(mktemp) || return 1
+    cand=$(mktemp) || { rm -f "$inner"; return 1; }
+    local -a bargs=("$op" "${opts[0]}")
+    [[ -z "$mode" ]] || bargs+=(--mode "$mode")
+    [[ -z "$scale" ]] || bargs+=(--scale "$scale")
+    [[ -z "$transform" ]] || bargs+=(--transform "$transform")
+    [[ -z "$position" ]] || bargs+=(--position "$position")
+    [[ -z "$mirror" ]] || bargs+=(--mirror "$mirror")
+    [[ -z "$vrr" ]] || bargs+=(--vrr "$vrr")
+    [[ -z "$hdr" ]] || bargs+=(--hdr)
+    [[ -z "$nohdr" ]] || bargs+=(--no-hdr)
+    desktop_mon_build "${bargs[@]}" > "$inner" \
+      || { local rc=$?; rm -f "$inner" "$cand"; return "$rc"; }
+    structured_block_candidate "$file" "$DESK_MON_START" "$DESK_MON_END" "$inner" "$cand" \
+      "-- Personal display entries live here. Replicant owns only the managed block below." \
+      || { local rc=$?; rm -f "$inner" "$cand"; return "$rc"; }
+    cat -- "$cand"; rm -f "$inner" "$cand"
+  }
+  # Availability first: a mode the monitor never offered cannot apply.
+  if [[ "$op" == set || "$op" == default ]]; then
+    local target="${opts[0]}"
+    if desktop_monitor_connected "$target" 2>/dev/null; then
+      info "Capability: $target is connected with $(desktop_monitor_modes "$target" 2>/dev/null | wc -l) modes."
+      if [[ -n "$mode" ]]; then
+        if desktop_mode_ok "$target" "$mode" 2>/dev/null; then
+          info "Capability: mode $mode is offered by $target."
+        else
+          echo "display: mode $mode is not offered by $target — pick one of:" >&2
+          desktop_monitor_modes "$target" 2>/dev/null | sed 's/^/  /' >&2 || true
+          return 1
+        fi
+      fi
+      if [[ -n "$mirror" ]]; then
+        if [[ "$mirror" == "$target" ]]; then
+          echo "display: a monitor cannot mirror itself" >&2; return 1
+        fi
+        desktop_monitor_connected "$mirror" 2>/dev/null \
+          || { echo "display: mirror target '$mirror' is not connected" >&2; return 1; }
+      fi
+    else
+      if [[ "$op" == set ]]; then
+        echo "display: '$target' is not connected — connect it, or manage it with disable/remove" >&2
+        return 1
+      fi
+      warn "'$target' is not connected now — stored for when it appears"
+    fi
+    # Same physical output, two owners: the managed block wins, so say so.
+    local mrows
+    mrows=$(desktop_mon_rows "$file" 2>/dev/null || true)
+    while IFS=$'\037' read -r o _mo _sc _tr _po _mi _bd _vr _dis mgd; do
+      [[ "$mgd" == 1 ]] && continue
+      [[ -z "$o" ]] && continue
+      if [[ "$o" == "$target" ]]; then
+        warn "Your file already configures '$target' outside the managed block — the managed entry wins"
+        break
+      fi
+    done <<<"$mrows"
+  fi
+  STRUCTURED_ARGS=("${flags[@]}")
+  export STRUCTURED_REDACT=1
+  local rc=0
+  if [[ "$op" == default ]]; then
+    # The default monitor is workspace 1 with default=true in this profile.
+    desktop_ws_add_build() {
+      local inner cand
+      inner=$(mktemp) || return 1
+      cand=$(mktemp) || { rm -f "$inner"; return 1; }
+      desktop_asg_build assign "1" "${opts[0]}" true > "$inner" \
+        || { local rc=$?; rm -f "$inner" "$cand"; return "$rc"; }
+      structured_block_candidate "$file" "$DESK_ASG_START" "$DESK_ASG_END" "$inner" "$cand" \
+        "-- Personal workspace assignments live here. Replicant owns only the managed block below." \
+        || { local rc=$?; rm -f "$inner" "$cand"; return "$rc"; }
+      cat -- "$cand"; rm -f "$inner" "$cand"
+    }
+    structured_run display desktop_ws_add_build "$file" "$owner" "display: default ${opts[0]}" lua "hyprctl reload" || rc=$?
+  else
+    structured_run display desktop_mon_add_build "$file" "$owner" "$subject" lua "hyprctl reload" || rc=$?
+  fi
+  export STRUCTURED_REDACT=0
+  return "$rc"
+}
+
+# cmd_reconcile — portable software reconciliation. Preview names the source
+# machine, the missing official and AUR packages separately, and the exact
+# official install command for the selection. Installs only named packages,
+# never removes, and writes nothing to the repo, so no lock is taken.
+cmd_reconcile() {
+  load_core
+  local sub=""
+  case "${1:-}" in
+    install) sub="install"; shift || true ;;
+    --from|--from=*|--json) ;;
+    "") ;;
+    -h|--help) ;;
+    *) fail "usage: replicant reconcile [--from <machine>] [--json] | reconcile install <pkg...> [--aur] [--apply] (try --help)" ;;
+  esac
+  if [[ "$sub" == install ]]; then
+    local kind=official
+    local -a rest=()
+    local a
+    for a in "$@"; do
+      [[ "$a" == "--aur" ]] && { kind=aur; continue; }
+      rest+=("$a")
+    done
+    reconcile_install "$kind" "${rest[@]}"
+    return $?
+  fi
+  reconcile_preview "$@"
 }
 
 cmd_doctor() {
@@ -1349,7 +2025,7 @@ Every day
              [--inventory]           subject from what changed)
   changes                     Review what a save would commit — read-only
   tx list|resume|discard      Recover an abandoned save transaction
-  status [--json] [--brief]   What changed, what is pushed, what is not
+  status [--json] [--brief] [--defer-settings]   What changed, what is pushed, what is not
   diff [id]                   Pending changes, or what changed in one file
   push                        Send the commits you already have, and nothing else
   pull                        Bring down what another machine saved
@@ -1371,7 +2047,43 @@ Settings
   settings [--json]           Every editable setting and its current value
   get <id>  ·  set <id> <v>   Read or write one     (always in the stored unit, e.g. seconds)
   revert <id> [--to default|repo]   Put one setting back
+  apply <shell|hyprland|terminal> [--apply]   Run what a settings change needs
   shortcuts [--json]          Your keybinding overrides, and what is bound now
+
+Structured editors            (preview first; --apply writes and saves)
+  shortcut list [--json]      Your keybindings, managed and your own
+  shortcut add <keys> <command> [--desc text] [--apply]
+  shortcut disable <keys> [--apply]    Silence a binding without deleting it
+  shortcut restore <keys> [--apply]    Bring back a silenced binding
+  shortcut remove <keys> [--apply]     Delete one of your Replicant bindings
+  compose list [--json]       Your compose sequences, managed and your own
+  compose add '<seq>' '<result>' [--apply]
+  compose remove '<seq>' [--apply]
+  bar-layout list [--json]     Widgets per bar section, in order
+  bar-layout move <widget> --section <s> [--before x|--after x|--index n] [--apply]
+  bar-layout enable <id> --section <s> [--apply]
+  bar-layout disable <widget> [--apply]
+  bar-layout spacer --section <s> [--size n] [--apply]
+
+Desktop editors               (preview first; --apply writes and saves)
+  workspace list [--json]     Workspaces: structure shared, monitors per profile
+  workspace define <n> [--name X] [--layout L] [--persistent on|off] [--apply]
+  workspace undefine <n> [--apply]
+  workspace count <n> [--apply]   Keep workspaces 1..N alive when empty
+  workspace app-add <class> <n> [--apply]
+  workspace app-remove <class> [--apply]
+  workspace assign <n> <monitor> [--default] [--apply]
+  workspace unassign <n> [--apply]
+  display list [--json]       Monitors: entries, connection, offered modes
+  display set <monitor> [--mode WxH@R] [--scale S] [--rotation 0-7]
+    [--position XxY|auto] [--mirror M] [--vrr 0-2] [--hdr|--no-hdr] [--apply]
+  display enable|disable <monitor> [--apply]
+  display remove <monitor> [--apply]
+  display default <monitor> [--apply]   Workspace 1 opens here by default
+
+Software you chose               (preview first; --apply installs, never removes)
+  reconcile [--from <machine>] [--json]   What another machine has that this one lacks
+  reconcile install <pkg...> [--aur] [--apply]   Install named missing packages
 
 Secret key                   (one shared age identity behind encrypted secrets)
   key init                    Create it on this machine, and record the recipient
@@ -1479,9 +2191,11 @@ Dry-run by default, like everything here that writes.
   derived from the paths that changed (what the panel's Save button uses).
   With neither, the inventory is committed when it moved and anything else is
   left for a reasoned commit by hand. --no-push holds it all locally."
-  [status]="status [--json] [--brief] [--fetch|--no-fetch]
+  [status]="status [--json] [--brief] [--defer-settings] [--fetch|--no-fetch]
   What changed, what is saved, what is still to push. --json is what the panel
-  reads. Read-only: it never writes to the repo."
+  reads. --defer-settings answers every row with an empty settings array and a
+  settings_deferred marker; the Settings tab then loads 'settings --json' on
+  demand. Read-only: it never writes to the repo."
   [get]="get <setting-id>
   Print one setting's current value, in the unit it is stored in."
   [set]="set <setting-id> <value>
@@ -1502,6 +2216,10 @@ Dry-run by default, like everything here that writes.
   Recent saves. Runs of identical subjects are collapsed with a count."
   [settings]="settings [--json]
   Every editable setting, its current value and where it is stored."
+  [apply]="apply <shell|hyprland|terminal> [--apply]
+  Run what a settings change needs: restart the shell, reload Hyprland, or
+  restart the terminals. A dry run by default: it names the exact command and
+  runs nothing. shell restarts detached."
   [doctor]="doctor
   Check auth, that the remote really is private, the git hooks, file modes and
   version skew between machines. Read-only; it fixes nothing."
@@ -1557,6 +2275,76 @@ Dry-run by default, like everything here that writes.
   Bring one file or directory back from the repo, keeping a .bak.<epoch>."
   [shortcuts]="shortcuts [--json]
   Your own keybinding overrides, and what each key is bound to right now."
+  [shortcut]="shortcut list [--json]
+  shortcut add <keys> <command> [--desc text] [--apply]
+  shortcut disable <keys> [--apply]
+  shortcut restore <keys> [--apply]
+  shortcut remove <keys> [--apply]
+  Deterministic keybinding edits in hypr/bindings.lua. Replicant owns one
+  managed block at the end of the file; everything outside it is left
+  byte-for-byte alone. Every mutation prints its preview first and writes
+  only with --apply, then saves hypr/bindings.lua through the repo.
+  add refuses keys that are already bound. disable silences a binding with
+  hl.unbind, restore brings it back, and remove deletes a Replicant binding.
+  Bindings that are yours (not Replicant's) are never touched."
+  [compose]="compose list [--json]
+  compose add '<sequence>' '<result>' [--apply]
+  compose remove '<sequence>' [--apply]
+  Deterministic compose-sequence edits in ~/.XCompose. Replicant owns one
+  managed block; everything outside it is preserved. Every mutation prints
+  its preview first and writes only with --apply, then applies
+  omarchy-restart-xcompose and saves home/XCompose through the repo.
+  add refuses a sequence that already exists. Sequences that are yours
+  (not Replicant's) are never removed."
+  [bar-layout]="bar-layout list [--json]
+  bar-layout move <widget> --section <s> [--before x|--after x|--index n] [--apply]
+  bar-layout enable <id> --section <s> [--apply]
+  bar-layout disable <widget> [--apply]
+  bar-layout spacer --section <s> [--size n] [--apply]
+  Deterministic bar-layout edits in shell.json. A widget is an id
+  (omarchy.clock) or a section:index pair (center:2, the only way to name a
+  spacer). Every mutation prints its preview first and writes only with
+  --apply, then saves omarchy/shell.json through the repo. The shell watches
+  the file, so no reload is needed. enable refuses a widget that is already
+  on the bar; disable removes it from the bar (the plugin stays installed)."
+  [workspace]="workspace list [--json]
+  workspace define <n> [--name X] [--layout L] [--persistent on|off] [--apply]
+  workspace undefine <n> [--apply]
+  workspace count <n> [--apply]
+  workspace app-add <class> <n> [--apply]
+  workspace app-remove <class> [--apply]
+  workspace assign <n> <monitor> [--default] [--apply]
+  workspace unassign <n> [--apply]
+  Profile-aware workspace editors. Application rules and workspace structure
+  (names, layouts, keep-empty) are shared in hypr/hyprland.lua; monitor
+  assignments are per-profile in hypr/monitors.lua. Replicant owns one
+  managed block per concern; everything else is preserved byte-for-byte.
+  Every mutation prints its preview first and writes only with --apply.
+  define keeps the existing keep-empty answer when only renaming. count
+  keeps workspaces 1..N alive and drops keep-empty above N. assign warns
+  when the monitor is not connected, and --default moves the default flag
+  from the other workspaces on that monitor. No desc: serial ever prints."
+  [display]="display list [--json]
+  display set <monitor> [--mode WxH@R|preferred] [--scale S] [--rotation 0-7]
+    [--position XxY|auto] [--mirror M] [--vrr 0-2] [--hdr|--no-hdr] [--apply]
+  display enable|disable <monitor> [--apply]
+  display remove <monitor> [--apply]
+  display default <monitor> [--apply]
+  Per-profile display entries in hypr/monitors.lua. set merges into the
+  managed entry (a connector name, never a desc: serial) and refuses modes
+  the connected monitor does not offer, printing its capability first.
+  disable and remove also work for a monitor that is not connected.
+  default makes workspace 1 prefer that monitor in this profile.
+  No desc: serial ever prints."
+  [reconcile]="reconcile [--from <machine>] [--json]
+  reconcile install <pkg...> [--aur] [--apply]
+  Portable software reconciliation, presented as part of restore. The preview
+  names the source machine (the newest save, or --from), lists missing
+  official and AUR packages separately, and prints the exact official install
+  command. install takes only named packages, refuses anything not missing,
+  and never removes. Base and ignored packages are never proposed.
+  Plugins and themes list with their origins; review one with
+  install-plugin <id> --check before install-plugin --revision <sha> --yes."
   [link]="link
   Put replicant on your PATH at ~/.local/bin. The panel never needs
   this — it is for typing."
@@ -1660,7 +2448,7 @@ main() {
     init|create|save|set|save-file|reset|reset-all|push|pull|clone|restore|scope|policy|bulk|track|untrack|forget|profile|revert|restore-file|install-theme|install-plugin|tx) acquire_repo_lock ;;
     # These write only when they apply. A dry run takes no lock: taking it
     # creates the lock file, and purge would then list its own lock.
-    undo|backups|purge|recover)
+    undo|backups|purge|recover|shortcut|compose|bar-layout|workspace|display)
       if [[ -d "$REPLICANT_HOME" ]] && wants_apply "$@"; then
         acquire_repo_lock
       fi ;;
@@ -1685,6 +2473,7 @@ main() {
     save-file) shift; cmd_save_file "$@";;
     log) shift; cmd_log "$@";;
     settings) shift; cmd_settings "$@";;
+    apply) shift; cmd_apply "$@";;
     doctor) shift; cmd_doctor "$@";;
     scope) shift; cmd_scope "$@";;
     policy) shift; cmd_policy "$@";;
@@ -1705,6 +2494,12 @@ main() {
     revert) shift; cmd_revert "$@";;
     restore-file) shift; cmd_restore_file "$@";;
     shortcuts) shift; cmd_shortcuts "$@";;
+    shortcut) shift; cmd_shortcut "$@";;
+    compose) shift; cmd_compose "$@";;
+    bar-layout) shift; cmd_bar_layout "$@";;
+    workspace) shift; cmd_workspace "$@";;
+    display) shift; cmd_display "$@";;
+    reconcile) shift; cmd_reconcile "$@";;
     link) shift; cmd_link "$@";;
     unlink) shift; cmd_unlink "$@";;
     backups) shift; cmd_backups "$@";;

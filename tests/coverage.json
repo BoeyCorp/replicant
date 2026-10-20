@@ -1,52 +1,271 @@
 {
-  "version": 1,
-  "note": "Every public dispatcher command mapped to success, failure, and no-op tests. No-op is covered by the --help surface check in test-cli.sh, which verifies every command answers --help with rc 0 and touches no disk.",
-  "commands": {
-    "backups": {"success": "tests/test-cli.sh", "failure": "tests/test-cli.sh", "noop": "tests/test-cli.sh"},
-    "bulk": {"success": "tests/test-bulk.sh", "failure": "tests/test-bulk.sh", "noop": "tests/test-cli.sh"},
-    "changes": {"success": "tests/test-cli.sh", "failure": "tests/test-cli.sh", "noop": "tests/test-cli.sh"},
-    "clone": {"success": "tests/test-journey.sh", "failure": "tests/test-bootstrap.sh", "noop": "tests/test-cli.sh"},
-    "create": {"success": "tests/test-bootstrap.sh", "failure": "tests/test-bootstrap.sh", "noop": "tests/test-cli.sh"},
-    "deleted": {"success": "tests/test-core.sh", "failure": "tests/test-cli.sh", "noop": "tests/test-cli.sh"},
-    "diff": {"success": "tests/test-core.sh", "failure": "tests/test-cli.sh", "noop": "tests/test-cli.sh"},
-    "doctor": {"success": "tests/test-cli.sh", "failure": "tests/test-cli.sh", "noop": "tests/test-cli.sh"},
-    "edit": {"success": "tests/test-cli.sh", "failure": "tests/test-cli.sh", "noop": "tests/test-cli.sh"},
-    "forget": {"success": "tests/test-core.sh", "failure": "tests/test-cli.sh", "noop": "tests/test-cli.sh"},
-    "get": {"success": "tests/test-settings.sh", "failure": "tests/test-cli.sh", "noop": "tests/test-cli.sh"},
-    "init": {"success": "tests/test-bootstrap.sh", "failure": "tests/test-bootstrap.sh", "noop": "tests/test-cli.sh"},
-    "install-plugin": {"success": "tests/test-core.sh", "failure": "tests/test-cli.sh", "noop": "tests/test-cli.sh"},
-    "install-theme": {"success": "tests/test-core.sh", "failure": "tests/test-cli.sh", "noop": "tests/test-cli.sh"},
-    "key": {"success": "tests/test-crypto.sh", "failure": "tests/test-crypto.sh", "noop": "tests/test-cli.sh"},
-    "link": {"success": "tests/test-cli.sh", "failure": "tests/test-cli.sh", "noop": "tests/test-cli.sh"},
-    "log": {"success": "tests/test-cli.sh", "failure": "tests/test-cli.sh", "noop": "tests/test-cli.sh"},
-    "login": {"success": "tests/test-cli.sh", "failure": "tests/test-cli.sh", "noop": "tests/test-cli.sh"},
-    "path": {"success": "tests/test-cli.sh", "failure": "tests/test-cli.sh", "noop": "tests/test-cli.sh"},
-    "policy": {"success": "tests/test-cli.sh", "failure": "tests/test-cli.sh", "noop": "tests/test-cli.sh"},
-    "profile": {"success": "tests/test-core.sh", "failure": "tests/test-cli.sh", "noop": "tests/test-cli.sh"},
-    "pull": {"success": "tests/test-journey.sh", "failure": "tests/test-cli.sh", "noop": "tests/test-cli.sh"},
-    "purge": {"success": "tests/test-cli.sh", "failure": "tests/test-cli.sh", "noop": "tests/test-cli.sh"},
-    "push": {"success": "tests/test-journey.sh", "failure": "tests/test-cli.sh", "noop": "tests/test-cli.sh"},
-    "recover": {"success": "tests/test-core.sh", "failure": "tests/test-cli.sh", "noop": "tests/test-cli.sh"},
-    "reset": {"success": "tests/test-cli.sh", "failure": "tests/test-cli.sh", "noop": "tests/test-cli.sh"},
-    "reset-all": {"success": "tests/test-cli.sh", "failure": "tests/test-cli.sh", "noop": "tests/test-cli.sh"},
-    "restore": {"success": "tests/test-core.sh", "failure": "tests/test-cli.sh", "noop": "tests/test-cli.sh"},
-    "restore-file": {"success": "tests/test-core.sh", "failure": "tests/test-cli.sh", "noop": "tests/test-cli.sh"},
-    "revert": {"success": "tests/test-settings.sh", "failure": "tests/test-cli.sh", "noop": "tests/test-cli.sh"},
-    "save": {"success": "tests/test-save.sh", "failure": "tests/test-save.sh", "noop": "tests/test-cli.sh"},
-    "save-file": {"success": "tests/test-journey.sh", "failure": "tests/test-cli.sh", "noop": "tests/test-cli.sh"},
-    "scope": {"success": "tests/test-core.sh", "failure": "tests/test-cli.sh", "noop": "tests/test-cli.sh"},
-    "set": {"success": "tests/test-settings.sh", "failure": "tests/test-cli.sh", "noop": "tests/test-cli.sh"},
-    "settings": {"success": "tests/test-settings.sh", "failure": "tests/test-cli.sh", "noop": "tests/test-cli.sh"},
-    "setup-status": {"success": "tests/test-cli.sh", "failure": "tests/test-cli.sh", "noop": "tests/test-cli.sh"},
-    "shortcuts": {"success": "tests/test-core.sh", "failure": "tests/test-cli.sh", "noop": "tests/test-cli.sh"},
-    "status": {"success": "tests/test-core.sh", "failure": "tests/test-cli.sh", "noop": "tests/test-cli.sh"},
-    "suggest": {"success": "tests/test-core.sh", "failure": "tests/test-cli.sh", "noop": "tests/test-cli.sh"},
-    "track": {"success": "tests/test-core.sh", "failure": "tests/test-cli.sh", "noop": "tests/test-cli.sh"},
-    "tx": {"success": "tests/test-save.sh", "failure": "tests/test-save.sh", "noop": "tests/test-cli.sh"},
-    "undo": {"success": "tests/test-cli.sh", "failure": "tests/test-cli.sh", "noop": "tests/test-cli.sh"},
-    "unlink": {"success": "tests/test-cli.sh", "failure": "tests/test-cli.sh", "noop": "tests/test-cli.sh"},
-    "untrack": {"success": "tests/test-core.sh", "failure": "tests/test-cli.sh", "noop": "tests/test-cli.sh"},
-    "update": {"success": "tests/test-cli.sh", "failure": "tests/test-cli.sh", "noop": "tests/test-cli.sh"},
-    "update-check": {"success": "tests/test-cli.sh", "failure": "tests/test-cli.sh", "noop": "tests/test-cli.sh"}
+ "commands": {
+  "apply": {
+   "failure": "tests/test-cli.sh",
+   "noop": "tests/test-cli.sh",
+   "success": "tests/test-cli.sh"
+  },
+  "backups": {
+   "failure": "tests/test-cli.sh",
+   "noop": "tests/test-cli.sh",
+   "success": "tests/test-cli.sh"
+  },
+  "bar-layout": {
+   "failure": "tests/test-structured.sh",
+   "noop": "tests/test-structured.sh",
+   "success": "tests/test-structured.sh"
+  },
+  "bulk": {
+   "failure": "tests/test-bulk.sh",
+   "noop": "tests/test-cli.sh",
+   "success": "tests/test-bulk.sh"
+  },
+  "changes": {
+   "failure": "tests/test-cli.sh",
+   "noop": "tests/test-cli.sh",
+   "success": "tests/test-cli.sh"
+  },
+  "clone": {
+   "failure": "tests/test-bootstrap.sh",
+   "noop": "tests/test-cli.sh",
+   "success": "tests/test-journey.sh"
+  },
+  "compose": {
+   "failure": "tests/test-structured.sh",
+   "noop": "tests/test-structured.sh",
+   "success": "tests/test-structured.sh"
+  },
+  "create": {
+   "failure": "tests/test-bootstrap.sh",
+   "noop": "tests/test-cli.sh",
+   "success": "tests/test-bootstrap.sh"
+  },
+  "deleted": {
+   "failure": "tests/test-cli.sh",
+   "noop": "tests/test-cli.sh",
+   "success": "tests/test-core.sh"
+  },
+  "diff": {
+   "failure": "tests/test-cli.sh",
+   "noop": "tests/test-cli.sh",
+   "success": "tests/test-core.sh"
+  },
+  "display": {
+   "failure": "tests/test-desktop.sh",
+   "noop": "tests/test-desktop.sh",
+   "success": "tests/test-desktop.sh"
+  },
+  "doctor": {
+   "failure": "tests/test-cli.sh",
+   "noop": "tests/test-cli.sh",
+   "success": "tests/test-cli.sh"
+  },
+  "edit": {
+   "failure": "tests/test-cli.sh",
+   "noop": "tests/test-cli.sh",
+   "success": "tests/test-cli.sh"
+  },
+  "forget": {
+   "failure": "tests/test-cli.sh",
+   "noop": "tests/test-cli.sh",
+   "success": "tests/test-core.sh"
+  },
+  "get": {
+   "failure": "tests/test-cli.sh",
+   "noop": "tests/test-cli.sh",
+   "success": "tests/test-settings.sh"
+  },
+  "init": {
+   "failure": "tests/test-bootstrap.sh",
+   "noop": "tests/test-cli.sh",
+   "success": "tests/test-bootstrap.sh"
+  },
+  "install-plugin": {
+   "failure": "tests/test-cli.sh",
+   "noop": "tests/test-cli.sh",
+   "success": "tests/test-core.sh"
+  },
+  "install-theme": {
+   "failure": "tests/test-cli.sh",
+   "noop": "tests/test-cli.sh",
+   "success": "tests/test-core.sh"
+  },
+  "key": {
+   "failure": "tests/test-crypto.sh",
+   "noop": "tests/test-cli.sh",
+   "success": "tests/test-crypto.sh"
+  },
+  "link": {
+   "failure": "tests/test-cli.sh",
+   "noop": "tests/test-cli.sh",
+   "success": "tests/test-cli.sh"
+  },
+  "log": {
+   "failure": "tests/test-cli.sh",
+   "noop": "tests/test-cli.sh",
+   "success": "tests/test-cli.sh"
+  },
+  "login": {
+   "failure": "tests/test-cli.sh",
+   "noop": "tests/test-cli.sh",
+   "success": "tests/test-cli.sh"
+  },
+  "path": {
+   "failure": "tests/test-cli.sh",
+   "noop": "tests/test-cli.sh",
+   "success": "tests/test-cli.sh"
+  },
+  "policy": {
+   "failure": "tests/test-cli.sh",
+   "noop": "tests/test-cli.sh",
+   "success": "tests/test-cli.sh"
+  },
+  "profile": {
+   "failure": "tests/test-cli.sh",
+   "noop": "tests/test-cli.sh",
+   "success": "tests/test-core.sh"
+  },
+  "pull": {
+   "failure": "tests/test-cli.sh",
+   "noop": "tests/test-cli.sh",
+   "success": "tests/test-journey.sh"
+  },
+  "purge": {
+   "failure": "tests/test-cli.sh",
+   "noop": "tests/test-cli.sh",
+   "success": "tests/test-cli.sh"
+  },
+  "push": {
+   "failure": "tests/test-cli.sh",
+   "noop": "tests/test-cli.sh",
+   "success": "tests/test-journey.sh"
+  },
+  "reconcile": {
+   "failure": "tests/test-reconcile.sh",
+   "noop": "tests/test-reconcile.sh",
+   "success": "tests/test-reconcile.sh"
+  },
+  "recover": {
+   "failure": "tests/test-cli.sh",
+   "noop": "tests/test-cli.sh",
+   "success": "tests/test-core.sh"
+  },
+  "reset": {
+   "failure": "tests/test-cli.sh",
+   "noop": "tests/test-cli.sh",
+   "success": "tests/test-cli.sh"
+  },
+  "reset-all": {
+   "failure": "tests/test-cli.sh",
+   "noop": "tests/test-cli.sh",
+   "success": "tests/test-cli.sh"
+  },
+  "restore": {
+   "failure": "tests/test-cli.sh",
+   "noop": "tests/test-cli.sh",
+   "success": "tests/test-core.sh"
+  },
+  "restore-file": {
+   "failure": "tests/test-cli.sh",
+   "noop": "tests/test-cli.sh",
+   "success": "tests/test-core.sh"
+  },
+  "revert": {
+   "failure": "tests/test-cli.sh",
+   "noop": "tests/test-cli.sh",
+   "success": "tests/test-settings.sh"
+  },
+  "save": {
+   "failure": "tests/test-save.sh",
+   "noop": "tests/test-cli.sh",
+   "success": "tests/test-save.sh"
+  },
+  "save-file": {
+   "failure": "tests/test-cli.sh",
+   "noop": "tests/test-cli.sh",
+   "success": "tests/test-journey.sh"
+  },
+  "scope": {
+   "failure": "tests/test-cli.sh",
+   "noop": "tests/test-cli.sh",
+   "success": "tests/test-core.sh"
+  },
+  "set": {
+   "failure": "tests/test-cli.sh",
+   "noop": "tests/test-cli.sh",
+   "success": "tests/test-settings.sh"
+  },
+  "settings": {
+   "failure": "tests/test-cli.sh",
+   "noop": "tests/test-cli.sh",
+   "success": "tests/test-settings.sh"
+  },
+  "setup-status": {
+   "failure": "tests/test-cli.sh",
+   "noop": "tests/test-cli.sh",
+   "success": "tests/test-cli.sh"
+  },
+  "shortcut": {
+   "failure": "tests/test-structured.sh",
+   "noop": "tests/test-structured.sh",
+   "success": "tests/test-structured.sh"
+  },
+  "shortcuts": {
+   "failure": "tests/test-cli.sh",
+   "noop": "tests/test-cli.sh",
+   "success": "tests/test-core.sh"
+  },
+  "status": {
+   "failure": "tests/test-cli.sh",
+   "noop": "tests/test-cli.sh",
+   "success": "tests/test-core.sh"
+  },
+  "suggest": {
+   "failure": "tests/test-cli.sh",
+   "noop": "tests/test-cli.sh",
+   "success": "tests/test-core.sh"
+  },
+  "track": {
+   "failure": "tests/test-cli.sh",
+   "noop": "tests/test-cli.sh",
+   "success": "tests/test-core.sh"
+  },
+  "tx": {
+   "failure": "tests/test-save.sh",
+   "noop": "tests/test-cli.sh",
+   "success": "tests/test-save.sh"
+  },
+  "undo": {
+   "failure": "tests/test-cli.sh",
+   "noop": "tests/test-cli.sh",
+   "success": "tests/test-cli.sh"
+  },
+  "unlink": {
+   "failure": "tests/test-cli.sh",
+   "noop": "tests/test-cli.sh",
+   "success": "tests/test-cli.sh"
+  },
+  "untrack": {
+   "failure": "tests/test-cli.sh",
+   "noop": "tests/test-cli.sh",
+   "success": "tests/test-core.sh"
+  },
+  "update": {
+   "failure": "tests/test-cli.sh",
+   "noop": "tests/test-cli.sh",
+   "success": "tests/test-cli.sh"
+  },
+  "update-check": {
+   "failure": "tests/test-cli.sh",
+   "noop": "tests/test-cli.sh",
+   "success": "tests/test-cli.sh"
+  },
+  "workspace": {
+   "failure": "tests/test-desktop.sh",
+   "noop": "tests/test-desktop.sh",
+   "success": "tests/test-desktop.sh"
   }
+ },
+ "note": "Every public dispatcher command mapped to success, failure, and no-op tests. No-op is covered by the --help surface check in test-cli.sh, which verifies every command answers --help with rc 0 and touches no disk.",
+ "version": 1
 }
