@@ -30,7 +30,7 @@
 
 - F01: reconcile current verification records in `docs/TASKS.md`.
 - F02: BLOCKED. Verify Settings when a disposable Omarchy session is available.
-- F03: improve Restore decision evidence without changing the repository format or scope CLI.
+- F03: Restore preview audit passed. Existing previews meet the evidence and secret-redaction criteria.
 - F04: separate active work from project history in the task records.
 - F05: select one measured panel organization improvement after F03 and F04.
 

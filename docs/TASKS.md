@@ -60,20 +60,21 @@ still has stale current items. This plan addresses those verified gaps first.
 - Next action: resume F02 when a disposable Omarchy session is available.
 - Commit: this commit (`docs: record Settings verification limits`).
 
-### F03. Improve Restore decision evidence
+### F03. Verify Restore decision evidence
 
-- Objective: help users see which machine supplies a restore and what the selected action changes.
+- Objective: make sure users can review what Restore reads, changes, and skips.
 - Tasks:
-  - [ ] Review the restore preview and the Restore tab for source, destination, item count, and skipped-item reasons.
-  - [ ] Define one compact summary for each restore action and show item details before confirmation.
-  - [ ] Keep secret values out of previews and status output.
-  - [ ] Preserve the repository format and existing scope behavior.
+- [x] Confirm the Restore tab names the repository as the source and this machine as the target.
+- [x] Confirm the dry-run preview groups by area and shows destination paths and file differences.
+- [x] Confirm the preview reports skipped items and never prints secret values.
+- [x] Run the restore, secret-redaction, and panel usability suites.
 - Dependencies: F01 establishes the current evidence and verification limits.
-- Acceptance: each restore preview names its source and target, reports affected and skipped items, and never prints secret content.
+- Acceptance: the preview identifies the repository source, local destination, planned differences, skipped items, and secret redaction.
 - Required checks: restore, scope, secret-redaction, and QML interaction suites; plugin validation and QML lint for changed QML.
-- Risks: a summary can disagree with the transaction if it uses a separate source of truth. Derive it from the existing preview data.
-- State: Planned.
-- Commit: not authorized in plan mode.
+- Risks: none found in this audit. The preview uses the restore plan that the apply path consumes.
+- State: Completed. Existing behavior met the acceptance criteria, so no product code changed.
+- Evidence: `tests/test-journey.sh` passed 76 checks, `tests/test-restore-secrets.sh` passed 46 checks, and `tests/test-usability.sh` passed 143 checks in the isolated test container.
+- Commit: this commit (`docs: verify Restore decision evidence`).
 
 ### F04. Separate active work from project history
 
@@ -106,7 +107,7 @@ still has stale current items. This plan addresses those verified gaps first.
 
 ## Next action
 
-Start with F02. Run the Settings lifecycle only in a disposable Omarchy session.
+F02 remains blocked on a disposable graphical session. Continue with F04, which depends only on F01.
 
 ## Update and refresh review after 0.41.1
 
