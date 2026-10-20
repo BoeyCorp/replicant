@@ -736,6 +736,8 @@ cmd_update() {
   cur=$(jq -r '.current' <<<"$j"); lat=$(jq -r '.latest' <<<"$j")
   [[ "$(jq -r '.checkout' <<<"$j")" == true ]] || fail "this copy of the plugin is not a git checkout, so it cannot update itself"
   [[ "$(jq -r '.installed' <<<"$j")" == true ]] || fail "this copy runs from $PLUGIN_DIR, which is not the installed plugin. Update it with git pull"
+  [[ "$(jq -r '.fetch_failed' <<<"$j")" != true ]] || fail "could not reach the configured origin; the update was not checked"
+  [[ "$(jq -r '.diverged' <<<"$j")" != true ]] || fail "the installed checkout has commits outside its origin; review its history before updating"
   if [[ "$(jq -r '.available' <<<"$j")" != true ]]; then ok "Replicant $cur is up to date"; return 0; fi
   [[ "$(jq -r '.dirty' <<<"$j")" != true ]] || fail "the installed plugin has local changes in $PLUGIN_DIR, and omarchy plugin update cannot fast-forward over them"
   echo "Replicant $cur -> ${lat:-newer}:" >&2

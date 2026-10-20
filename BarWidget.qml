@@ -125,6 +125,7 @@ BarWidget {
   // asked again until the next tick a minute later. Remember it instead.
   property bool refreshPending: false
   property bool refreshPendingForce: false
+  readonly property bool statusRefreshing: probe.running || root.refreshPending
   function refresh(force) {
     if (probe.running) {
       root.refreshPending = true

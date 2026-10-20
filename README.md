@@ -49,9 +49,10 @@ You can edit the private repo name and choose the transport.
 
 ## Update
 
-If a newer version is on GitHub, the panel header shows **Update to** and the version. The button
-lists what changed, installs the version with `omarchy plugin update`, and restarts the shell. The
-panel asks GitHub at most every six hours. Click the version in the header to ask at once.
+If the configured origin has a newer version, the panel header shows **Update to** and the version.
+The button lists the changes, installs the version with `omarchy plugin update`, and restarts the shell.
+The panel checks the configured origin at most every six hours. Click the version to check at once.
+The panel reports a local origin and warns if local commits prevent an update.
 
 ```bash
 replicant update-check    # what is new, if anything

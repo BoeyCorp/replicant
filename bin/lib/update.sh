@@ -37,7 +37,7 @@ core_update_check() {
   for arg in "$@"; do
     case "$arg" in --fetch) fetch=1 ;; --json) json=1 ;; esac
   done
-  local current checkout=false installed=false latest="" behind=0 available=false
+  local current checkout=false installed=false latest="" behind=0 available=false diverged=false
   local dirty=false fetched=false fetch_failed=false checked=0 origin="" commits='[]'
   current=$(running_version)
   if plugin_is_checkout; then
@@ -62,6 +62,8 @@ core_update_check() {
       # somebody's work, and `omarchy plugin update` refuses to merge it.
       if (( behind > 0 )) && plugin_git merge-base --is-ancestor HEAD FETCH_HEAD 2>/dev/null; then
         available=true
+      elif ! plugin_git merge-base --is-ancestor HEAD FETCH_HEAD 2>/dev/null; then
+        diverged=true
       fi
       commits=$(plugin_git log -n 30 --format='%h%x1f%s' HEAD..FETCH_HEAD 2>/dev/null |
         jq -Rsc 'split("\n") | map(select(length > 0) | split("\u001f") | {sha: .[0], subject: .[1]})')
@@ -72,10 +74,11 @@ core_update_check() {
     jq -nc --arg current "$current" --arg latest "$latest" --arg origin "$origin" \
       --arg dir "$PLUGIN_DIR" --argjson checkout "$checkout" --argjson installed "$installed" \
       --argjson behind "${behind:-0}" --argjson available "$available" --argjson dirty "$dirty" \
+      --argjson diverged "$diverged" \
       --argjson fetched "$fetched" --argjson fetch_failed "$fetch_failed" \
       --argjson checked "${checked:-0}" --argjson commits "$commits" \
       '{current:$current, latest:$latest, available:$available, behind:$behind,
-        checkout:$checkout, installed:$installed, dirty:$dirty, dir:$dir, origin:$origin,
+        checkout:$checkout, installed:$installed, dirty:$dirty, diverged:$diverged, dir:$dir, origin:$origin,
         fetched:$fetched, fetch_failed:$fetch_failed, checked:$checked, commits:$commits}'
     return 0
   fi
@@ -84,6 +87,10 @@ core_update_check() {
     return 0
   fi
   [[ "$fetch_failed" == true ]] && echo "Could not reach $origin. The answer below is from the last check." >&2
+  if [[ "$diverged" == true ]]; then
+    echo "The installed checkout has commits outside its origin. Review its history before updating."
+    return 0
+  fi
   if [[ "$available" != true ]]; then
     echo "Replicant $current is up to date."
     return 0

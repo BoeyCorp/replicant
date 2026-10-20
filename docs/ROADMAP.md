@@ -14,6 +14,8 @@
 
 ## Current
 
+- Version 0.41.2 reports the actual update source and divergent history.
+  Manual refresh invalidates cached settings and reloads the active view.
 - Version 0.41.1 reviews the portable controls release. It preserves the
   selected package source, opens installs visibly, keeps file modes, improves
   rollback, and makes new command parsers fail closed. Decimal settings use

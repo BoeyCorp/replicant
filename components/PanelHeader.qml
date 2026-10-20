@@ -44,7 +44,7 @@ Item {
         font.bold: true
       }
       // The version, at the end of the name, where a person looks for it. A
-      // click asks GitHub for a newer one: the question belongs to the number.
+      // A click checks the configured origin for a newer version.
       Button {
         anchors.verticalCenter: parent.verticalCenter
         visible: panel.versionText !== ""
@@ -60,7 +60,7 @@ Item {
         enabled: !panel.updateChecking
         tooltipText: panel.updateChecking ? "Disabled: the update check is running."
                                            : panel.updateAvailable ? panel.updateTooltip
-                                           : "Replicant " + panel.versionText + ". Click to ask GitHub for a newer version."
+                                           : "Replicant " + panel.versionText + ". Click to check its configured origin."
         onClicked: panel.checkUpdates(true)
       }
     }
@@ -103,12 +103,12 @@ Item {
     Button {
       anchors.verticalCenter: parent.verticalCenter
       iconText: panel.icRefresh
-      iconSpinning: panel.operationRunning
+      iconSpinning: panel.statusRefreshing
       bordered: false
-      foreground: panel.operationRunning ? Commons.Color.accent : panel.dim
+      foreground: panel.statusRefreshing ? Commons.Color.accent : panel.dim
       fontFamily: panel.ff
-      tooltipText: panel.operationRunning ? panel.busyLabel : "Re-check this machine against the repo  (r)"
-      onClicked: panel.refresh()
+      tooltipText: panel.statusRefreshing ? "Refreshing status…" : "Refresh status and settings  (r)"
+      onClicked: panel.refreshFromUser()
     }
   }
 }

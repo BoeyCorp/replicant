@@ -191,6 +191,7 @@ Panel {
   // completed write clears the cache and the tab reloads on its next visit.
   property bool settingsLoaded: false
   property bool settingsLoading: false
+  property bool settingsReloadPending: false
   property string settingsError: ""
   // One manual apply action runs at a time. The buttons disable on it, and the
   // flag clears when the job completes, fails, or is cancelled.
@@ -393,6 +394,7 @@ Panel {
   readonly property bool pulling: controller.isRunning("pull")
   readonly property bool checking: controller.isRunning("doctor")
   readonly property bool updateChecking: controller.isRunning("update-check")
+  readonly property bool statusRefreshing: hostWidget ? hostWidget.statusRefreshing === true : false
   property string busyLabel: ""
 
   readonly property color fg: bar ? bar.foreground : Commons.Color.foreground
@@ -701,6 +703,10 @@ Panel {
     if (hostWidget) hostWidget.refresh(true)
     root.loadLog()
   }
+  function refreshFromUser() {
+    root.invalidateSettings()
+    root.refresh()
+  }
   function shellQuote(s) { return "'" + String(s).replace(/'/g, "'\\''") + "'" }
   function clean(s) { return String(s || "").replace(/\x1b\[[0-9;]*m/g, "").replace(/\n{3,}/g, "\n\n").trim() }
 
@@ -826,6 +832,7 @@ Panel {
   function invalidateSettings() {
     root.settingsLoaded = false
     if (root.hostWidget && root.hostWidget.invalidateSettingsCache) root.hostWidget.invalidateSettingsCache()
+    if (root.settingsLoading) { root.settingsReloadPending = true; return }
     if (root.opened && root.activeTab === "settings" && root.ready) root.loadSettings()
   }
   function loadLog() {
@@ -1188,7 +1195,7 @@ Panel {
   readonly property bool updateAvailable: root.updateInfo.available === true && root.updateInfo.installed === true
   readonly property string updateTooltip: {
     var u = root.updateInfo
-    if (u.available !== true) return "Ask GitHub whether a newer Replicant exists"
+    if (u.available !== true) return "Check the configured origin for a newer Replicant"
     var lines = (u.commits || []).slice(0, 8).map(function(c) { return "  " + c.sha + "  " + c.subject })
     return "Replicant " + u.latest + " is available. This machine has " + u.current + ".\n"
          + lines.join("\n") + ((u.commits || []).length > 8 ? "\n  +" + (u.commits.length - 8) + " more" : "")
@@ -1360,7 +1367,10 @@ Panel {
         else try { root.shortcuts = JSON.parse(stdoutText || "{}"); root.shortcutsLoaded = true; root.shortcutsError = "" } catch (e) { root.shortcutsError = "Replicant returned invalid keyboard data." }
       } else if (job === "settings") {
         root.settingsLoading = false
-        if (code !== 0) {
+        if (root.settingsReloadPending) {
+          root.settingsReloadPending = false
+          if (root.opened && root.activeTab === "settings" && root.ready) root.loadSettings()
+        } else if (code !== 0) {
           root.settingsError = text || "Could not read settings."
         } else {
           var parsedSettings = R.parseSettingsPayload(stdoutText)
@@ -1409,16 +1419,22 @@ Panel {
           root.lastOutput = text || "Could not resolve a full revision. Nothing was fetched."
         }
       } else if (job === "update-check") {
-        try { root.updateInfo = JSON.parse(stdoutText || "{}") } catch (e) { root.updateInfo = ({}) }
+        var validUpdate = code === 0
+        try { root.updateInfo = JSON.parse(stdoutText || "{}"); validUpdate = validUpdate && typeof root.updateInfo.checkout === "boolean" }
+        catch (e) { root.updateInfo = ({}); validUpdate = false }
         if (meta.forced === true) {
           var u = root.updateInfo
           root.lastTitle = "Check for updates"
-          root.lastOk = u.fetch_failed !== true
+          root.lastOk = validUpdate && u.fetch_failed !== true && u.diverged !== true && u.checkout === true
           root.lastWarn = false; root.lastCancelled = false
-          root.lastOutput = u.fetch_failed === true ? "Could not reach " + (u.origin || "GitHub") + ". Try again later."
+          var source = /^(file:\/\/|\/|\.\.?\/)/.test(String(u.origin || "")) ? "local repository" : "configured origin"
+          root.lastOutput = !validUpdate ? "Could not check for updates. " + (text || "The command returned invalid data.")
+                          : u.fetch_failed === true ? "Could not reach the " + source + ". Try again later."
                           : u.checkout !== true ? "This copy of Replicant is not a git checkout, so it cannot update itself."
+                          : u.diverged === true ? "This checkout has commits outside its " + source + ". Review its history before updating."
+                          : u.available === true && u.installed !== true ? "Replicant " + u.latest + " is available at the " + source + ". Update this development checkout with Git."
                           : u.available === true ? "Replicant " + u.latest + " is available. Press Update in the header."
-                          : "Replicant " + u.current + " is up to date."
+                          : "Replicant " + u.current + " is up to date with its " + source + "."
         }
       } else if (job === "edit") {
         if (stdoutText.indexOf("replicant:waited") !== -1) {
@@ -1622,7 +1638,7 @@ Panel {
         else if (t === "2") root.activeTab = "configs"
         else if (t === "3") root.activeTab = "settings"
         else if (t === "4") root.activeTab = "restore"
-        else if (t === "r") root.refresh()
+        else if (t === "r") root.refreshFromUser()
         else if (t === "s" && root.ready && !root.busy) root.doSave()
         // The other half of the same journey, and since 0.7.2 the panel has a
         // state whose answer is Pull rather than Save.

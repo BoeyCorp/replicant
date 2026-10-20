@@ -3,6 +3,16 @@
 Complete one small, verifiable task at a time. When a task is complete, update its checkbox and
 `ROADMAP.md` in the same change.
 
+## Update and refresh review after 0.41.1
+
+- [x] Name the configured update source and report divergent Git history.
+- [x] Refresh cached settings after a manual refresh, including in-flight reads.
+- [x] Show status refresh activity in the header.
+- [x] Run the full verification matrix for version 0.41.2.
+
+`./tests/run-all.sh`, plugin validation, QML lint, and the version check pass.
+The real panel also rejects an in-flight settings result after a manual refresh.
+
 ## Portable controls review after 0.41.0
 
 - [x] Keep the selected reconciliation source through confirmation and installation.

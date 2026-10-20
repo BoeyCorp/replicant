@@ -963,6 +963,24 @@ uc=$("$pinst/bin/replicant" update-check --json --fetch 2>/dev/null)
 check "a newer origin is an update" "true" "$(jq -r '.available' <<<"$uc")"
 check "…named by its version" "99.0.0" "$(jq -r '.latest' <<<"$uc")"
 check "…with what it changes" "Release 99.0.0" "$(jq -r '.commits[0].subject' <<<"$uc")"
+check "a fast-forward update is not divergent" "false" "$(jq -r '.diverged' <<<"$uc")"
+printf 'local change\n' > "$pinst/local-change"
+git -C "$pinst" add local-change && git -C "$pinst" commit -qm 'Local change'
+uc=$("$pinst/bin/replicant" update-check --json --fetch 2>/dev/null)
+check "divergent local history is reported" "true" "$(jq -r '.diverged' <<<"$uc")"
+check "divergent history is not offered as an update" "false" "$(jq -r '.available' <<<"$uc")"
+check_contains "the text form explains divergent history" "commits outside its origin" \
+  "$("$pinst/bin/replicant" update-check 2>&1)"
+check_false "update refuses divergent history" "$pinst/bin/replicant" update --yes
+check_contains "update explains divergent history" "commits outside its origin" \
+  "$("$pinst/bin/replicant" update --yes 2>&1)"
+git -C "$pinst" reset -q --hard HEAD^
+git -C "$pinst" remote set-url origin "$TMP/missing-plugin-origin.git"
+check_false "update fails when its origin cannot be reached" "$pinst/bin/replicant" update --yes
+check_contains "update explains a failed fetch" "could not reach the configured origin" \
+  "$("$pinst/bin/replicant" update --yes 2>&1)"
+git -C "$pinst" remote set-url origin "$porigin"
+"$pinst/bin/replicant" update-check --json --fetch >/dev/null 2>&1
 check_contains "the text form says how to update" "replicant update" \
   "$("$pinst/bin/replicant" update-check 2>&1)"
 stamp="$pinst/.git/FETCH_HEAD"
