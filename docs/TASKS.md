@@ -39,7 +39,8 @@ still has stale current items. This plan addresses those verified gaps first.
 
 - Objective: close the live verification gap for Settings hardening and release behavior.
 - Tasks:
-  - [ ] Use a disposable Omarchy session, separate from the active user plugin and private data.
+  - [x] Run the Settings, save, and QML controller suites in an isolated test container against this checkout.
+  - [ ] Use a disposable graphical Omarchy session, separate from the active user plugin and private data.
   - [ ] Exercise the documented install, enable, shell restart, and removal lifecycle.
   - [ ] Verify real setting reads, edits, resets, reload errors, rollback, and decimal input.
   - [ ] Record commands, results, and any environment limitation in the task records.
@@ -47,8 +48,17 @@ still has stale current items. This plan addresses those verified gaps first.
 - Acceptance: every lifecycle and Settings scenario has a result; failures retain exact evidence and remain open.
 - Required checks: the lifecycle and Settings scenarios listed in `docs/settings-hardening-plan.md`.
 - Risks: a disposable Omarchy session may not be available. Keep this phase open until the environment exists.
-- State: Planned.
-- Commit: not authorized in plan mode.
+- State: BLOCKED (2026-10-21).
+- Evidence: `omarchy plugin list --json` reports that `omarchy-shell` is not running, and
+  `hyprctl instances -j` returns no active instance. The local Docker inventory has no Omarchy or
+  Replicant test target. The active user installation is not a safe substitute for a disposable
+  session. The Settings suite passed 497 checks, the Settings save suite passed 35 checks, and the
+  QML controller suite passed 71 checks in a disposable container with this checkout mounted
+  read-only. A headless Hyprland start exited with `CBackend::create() failed`. An offscreen
+  Quickshell start exited because it had no display or session bus. These automated checks do not
+  verify the live install, enable, restart, and removal lifecycle.
+- Next action: resume F02 when a disposable Omarchy session is available.
+- Commit: this commit (`docs: record Settings verification limits`).
 
 ### F03. Improve Restore decision evidence
 
