@@ -23,7 +23,9 @@ jobs:
           bash tests/check-version-bump.sh --base "origin/${{ github.base_ref }}"
   suites:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    # The catalog grew (100 settings, three structured suites): the full run
+    # needs the room the old 20-minute budget no longer gives it.
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
         with:
