@@ -3,6 +3,7 @@ import QtQuick.Controls
 import Quickshell
 import Quickshell.Io
 import qs.Commons
+import qs.Commons as Commons
 import qs.Ui
 
 // One suggestion: a file that looks like config and that nothing tracks yet.
@@ -18,7 +19,7 @@ ListRow {
   detail: srow.item.reason || ""
   // A file that holds a credential is not a normal suggestion: tracked as
   // ordinary config it would sit world-readable in a git checkout.
-  detailColor: srow.isSecret ? Color.urgent : panel.dim
+  detailColor: srow.isSecret ? Commons.Color.urgent : panel.dim
 
   RowAction {
     panel: srow.panel

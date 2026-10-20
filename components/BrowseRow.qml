@@ -3,6 +3,7 @@ import QtQuick.Controls
 import Quickshell
 import Quickshell.Io
 import qs.Commons
+import qs.Commons as Commons
 import qs.Ui
 import "../replicant.js" as R
 
@@ -31,7 +32,7 @@ Item {
     anchors.leftMargin: Style.space(4)
     anchors.rightMargin: Style.space(4)
     radius: Style.cornerRadius
-    color: br.hot ? Style.hoverFillFor(panel.fg, Color.accent) : "transparent"
+    color: br.hot ? Style.hoverFillFor(panel.fg, Commons.Color.accent) : "transparent"
   }
 
   MouseArea {
@@ -47,7 +48,7 @@ Item {
     panel: br.panel
     anchors.fill: parent
     icon: br.isDir ? panel.icFolder : br.isLink ? panel.icLink : br.isSecret ? panel.icKey : panel.icFile
-    iconColor: br.isDir ? Color.accent : br.isSecret ? panel.warnColor : panel.dim
+    iconColor: br.isDir ? Commons.Color.accent : br.isSecret ? panel.warnColor : panel.dim
     title: br.entry.name + (br.isDir ? "/" : "")
     titleColor: br.entry.tracked ? panel.dim : panel.fg
     meta: br.entry.tracked ? "tracked" : br.isLink ? "symlink"

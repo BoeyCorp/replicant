@@ -119,7 +119,13 @@ check "JSON lists plugins with origins" "https://example.com/lap-plugin.git" "$(
 out=$(run reconcile --from desk)
 check_contains "another source can be chosen" "Source: desk" "$out"
 check_contains "desk item listed" "desk-only-pkg" "$out"
+check_contains "the explicit install example keeps its source" "--from desk" "$out"
 check_false "an unknown source is refused" run reconcile --from nope
+check_false "an unsafe source is refused" run reconcile --from ../repo
+check_false "the parent directory is not a source" run reconcile --from ..
+check_false "the state root is not a source" run reconcile --from .
+check_false "an empty source is refused" run reconcile --from=
+check_false "a missing source value is refused" run reconcile --from
 
 section "install takes only named missing packages"
 check_false "install needs a package" run reconcile install --apply
@@ -128,6 +134,10 @@ check_false "unknown packages refused" run reconcile install nope-pkg --apply
 check_false "base packages refused" run reconcile install base-pkg --apply
 check_false "installed packages refused" run reconcile install shared-pkg --apply
 check_false "unknown flags refused" run reconcile install lap-only-pkg --bogus --apply
+check_false "install refuses an empty source" run reconcile install lap-only-pkg --from=
+check_false "another source item is absent from the default" run reconcile install desk-only-pkg
+prev=$(run reconcile install desk-only-pkg --from desk)
+check_contains "install keeps the selected source" "omarchy pkg add desk-only-pkg" "$prev"
 prev=$(run reconcile install lap-only-pkg)
 check_contains "install preview names the command" "omarchy pkg add lap-only-pkg" "$prev"
 check_contains "install preview changes nothing" "Preview only" "$prev"
@@ -149,6 +159,7 @@ check "a failed install installs nothing" "0" "$(grep -c 'lap-spare-pkg' "$PACMA
 unset OMARCHY_FAIL
 run reconcile install lap-spare-pkg --apply >/dev/null 2>&1
 check "spare install succeeds" "0" "$?"
+check_false "an empty missing set stays closed" run reconcile install arbitrary-pkg --apply
 
 section "plugins and themes list with origins and review steps"
 out=$(run reconcile)
@@ -179,8 +190,14 @@ check_true "pending packages reach the panel" \
 check_true "Restore has a packages card" \
   bash -c 'grep -q "Packages to install" "$1/components/RestoreTab.qml"' _ "$HERE/.."
 check_true "packages install through reconcile" \
-  bash -c 'grep -q "reconcile\", \"install\"" "$1/Panel.qml"' _ "$HERE/.."
+  bash -c 'grep -q "reconcile install" "$1/Panel.qml"' _ "$HERE/.."
 check_true "the ask names the exact command" \
   bash -c 'grep -q "askInstallPackage" "$1/Panel.qml"' _ "$HERE/.."
+check_true "the panel keeps the source for install" \
+  bash -c 'grep -q "packageParts\[2\]" "$1/Panel.qml"' _ "$HERE/.."
+check_true "the panel opens package installs visibly" \
+  bash -c 'grep -q "runVisible(packageCommand)" "$1/Panel.qml"' _ "$HERE/.."
+check_true "the panel uses Omarchy's public terminal launcher" \
+  bash -c 'grep -q "omarchy launch floating terminal with presentation" "$1/Panel.qml"' _ "$HERE/.."
 
 summary

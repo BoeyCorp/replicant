@@ -3,6 +3,7 @@ import QtQuick.Controls
 import Quickshell
 import Quickshell.Io
 import qs.Commons
+import qs.Commons as Commons
 import qs.Ui
 import "../replicant.js" as R
 
@@ -29,7 +30,7 @@ Item {
     anchors.leftMargin: Style.space(4)
     anchors.rightMargin: Style.space(4)
     radius: Style.cornerRadius
-    color: hit.containsMouse && cr.expandable ? Style.hoverFillFor(panel.fg, Color.accent) : "transparent"
+    color: hit.containsMouse && cr.expandable ? Style.hoverFillFor(panel.fg, Commons.Color.accent) : "transparent"
   }
 
   Item {
@@ -107,7 +108,7 @@ Item {
           width: Style.space(16)
           text: fileLine.modelData.status
           color: fileLine.modelData.status === "A" ? panel.okColor
-               : fileLine.modelData.status === "D" ? Color.urgent : Color.accent
+               : fileLine.modelData.status === "D" ? Commons.Color.urgent : Commons.Color.accent
           font.family: panel.mono; font.pixelSize: Style.font.caption; font.bold: true
         }
         Text {

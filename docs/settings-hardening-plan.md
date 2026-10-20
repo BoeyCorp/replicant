@@ -125,6 +125,7 @@ Primary files: `components/SettingRow.qml` and QML interaction tests.
 
 Acceptance: users can enter values such as `0.4`, `1.25`, and `-0.5` where permitted by the setting.
 The control preserves that value and emits one operation per accepted edit.
+Version 0.41.1 replaces the slider with a text field and unit label.
 
 ## Release verification
 

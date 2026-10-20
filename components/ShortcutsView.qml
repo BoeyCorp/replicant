@@ -3,6 +3,7 @@ import QtQuick.Controls
 import Quickshell
 import Quickshell.Io
 import qs.Commons
+import qs.Commons as Commons
 import qs.Ui
 
 Column {
@@ -50,7 +51,7 @@ Column {
   Button {
     visible: panel.shortcutsError !== ""
     text: "Retry"; iconText: panel.icRefresh; bordered: true
-    foreground: panel.fg; accent: Color.accent; fontFamily: panel.ff
+    foreground: panel.fg; accent: Commons.Color.accent; fontFamily: panel.ff
     onClicked: { panel.shortcutsLoaded = false; panel.loadShortcuts() }
   }
 

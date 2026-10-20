@@ -3,6 +3,7 @@ import QtQuick.Controls
 import Quickshell
 import Quickshell.Io
 import qs.Commons
+import qs.Commons as Commons
 import qs.Ui
 
 // The top of a list tab: a search field, "Collapse all", the filters, and the
@@ -31,7 +32,7 @@ Column {
       width: parent.width - collapseBtn.width - Style.space(8)
       placeholderText: fb.placeholder
       foreground: panel.fg
-      accent: Color.accent
+      accent: Commons.Color.accent
       font.family: panel.ff
       onTextChanged: fb.searchEdited(text)
       onActiveFocusChanged: panel.noteFocus(field, activeFocus)
@@ -56,7 +57,7 @@ Column {
       spacing: Style.space(4)
       fontSize: Style.font.bodySmall
       foreground: panel.fg
-      accent: Color.accent
+      accent: Commons.Color.accent
       fontFamily: panel.ff
       value: fb.value
       options: fb.options

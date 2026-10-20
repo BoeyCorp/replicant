@@ -3,6 +3,7 @@ import QtQuick.Controls
 import Quickshell
 import Quickshell.Io
 import qs.Commons
+import qs.Commons as Commons
 import qs.Ui
 import "../replicant.js" as R
 
@@ -55,7 +56,7 @@ Column {
       Button {
         text: "Restore everything"; iconText: panel.icFromRepo; bordered: true
         foreground: panel.restoreDiffers > 0 ? panel.warnColor : panel.fg
-        accent: Color.accent; fontFamily: panel.ff
+        accent: Commons.Color.accent; fontFamily: panel.ff
         enabled: !panel.busy
         tooltipText: panel.busy ? "Disabled: another Replicant operation is running." : "Write every area back from your repo, and run what each area needs"
         onClicked: panel.ask("restore-all", "",
@@ -133,7 +134,7 @@ Column {
       Button {
         visible: panel.resetDiffers > 0
         text: "Reset to factory"; iconText: panel.icDefault; bordered: true
-        foreground: panel.fg; accent: Color.urgent; fontFamily: panel.ff
+        foreground: panel.fg; accent: Commons.Color.urgent; fontFamily: panel.ff
         enabled: !panel.busy
         tooltipText: panel.busy ? "Disabled: another Replicant operation is running." : "Put Omarchy's default back on every file listed in the preview"
         onClicked: panel.ask("reset-all", "",
@@ -171,7 +172,7 @@ Column {
       leftPadding: Style.spacing.rowPaddingX
       Button {
         text: "Retry"; iconText: panel.icRefresh; bordered: true
-        foreground: panel.fg; accent: Color.accent; fontFamily: panel.ff
+        foreground: panel.fg; accent: Commons.Color.accent; fontFamily: panel.ff
         onClicked: { panel.deletedLoaded = false; panel.loadDeleted() }
       }
     }
@@ -334,7 +335,7 @@ Column {
       leftPadding: Style.spacing.rowPaddingX
       Button {
         text: "Retry"; iconText: panel.icRefresh; bordered: true
-        foreground: panel.fg; accent: Color.accent; fontFamily: panel.ff
+        foreground: panel.fg; accent: Commons.Color.accent; fontFamily: panel.ff
         onClicked: { panel.backupsLoaded = false; panel.loadBackups() }
       }
     }

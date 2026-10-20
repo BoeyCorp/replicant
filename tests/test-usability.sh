@@ -124,8 +124,10 @@ check_true "Escape restores the current decimal" \
   grep -qF 'Keys.onEscapePressed:' "$SETTING_ROW"
 check_true "the decimal field avoids duplicate queue entries" \
   grep -qF 'queuedValue === raw' "$SETTING_ROW"
-check_true "the slider retains decimal precision" \
-  grep -qF 'String(v)' "$SETTING_ROW"
+check_true "the decimal field shows its unit like pixel rows" \
+  grep -qF 'srow.setting.display_unit || srow.setting.unit' "$SETTING_ROW"
+check_false "float rows have no slider to drag" \
+  grep -qF 'PanelSlider' "$SETTING_ROW"
 
 section "deferred panel data starts only when its view needs it"
 open_body=$(sed -n '/^[[:space:]]*function open() {/,/^[[:space:]]*}/p' "$PANEL")

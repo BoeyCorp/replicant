@@ -3,6 +3,7 @@ import QtQuick.Controls
 import Quickshell
 import Quickshell.Io
 import qs.Commons
+import qs.Commons as Commons
 import qs.Ui
 import "../replicant.js" as R
 
@@ -26,7 +27,7 @@ Card {
       panel: mc.panel
       width: mc.width
       icon: panel.icMachine
-      iconColor: modelData.current ? Color.accent : panel.dim
+      iconColor: modelData.current ? Commons.Color.accent : panel.dim
       title: modelData.name
       titleBold: modelData.current
       // A machine with no recorded profile guessed one from its chassis.
@@ -36,7 +37,7 @@ Card {
               + ((modelData.last_epoch || 0) > 0 ? "saved " + R.agoText(modelData.last_epoch)
                  : (modelData.last_save ? "saved " + modelData.last_save : "no saves yet"))
       meta: modelData.current ? "this machine" : ""
-      metaColor: Color.accent
+      metaColor: Commons.Color.accent
     }
   }
 }

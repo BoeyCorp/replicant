@@ -3,6 +3,7 @@ import QtQuick.Controls
 import Quickshell
 import Quickshell.Io
 import qs.Commons
+import qs.Commons as Commons
 import qs.Ui
 
 // A block of the panel: one header and what it holds. Every tab is built of
@@ -35,14 +36,14 @@ BorderSurface {
   signal toggled()
 
   readonly property bool open: !card.collapsible || card.expanded
-  readonly property color tintColor: card.tint === "warn" ? panel.warnColor : Color.accent
+  readonly property color tintColor: card.tint === "warn" ? panel.warnColor : Commons.Color.accent
 
   // Height from the column, which is anchored to the top and never centred.
   implicitHeight: col.implicitHeight
   radius: Style.cornerRadius
   color: card.tint !== "" ? Qt.rgba(card.tintColor.r, card.tintColor.g, card.tintColor.b, 0.07)
-                          : Style.controlFill(false, false, panel.fg, Color.accent)
-  borderSpec: Border.controlSpec(card.keyboardFocused || (card.collapsible && card.expanded) ? "focus" : "normal", panel.fg, Color.accent)
+                          : Style.controlFill(false, false, panel.fg, Commons.Color.accent)
+  borderSpec: Border.controlSpec(card.keyboardFocused || (card.collapsible && card.expanded) ? "focus" : "normal", panel.fg, Commons.Color.accent)
 
   Column {
     id: col

@@ -3,6 +3,7 @@ import QtQuick.Controls
 import Quickshell
 import Quickshell.Io
 import qs.Commons
+import qs.Commons as Commons
 import qs.Ui
 import "../replicant.js" as R
 
@@ -31,11 +32,11 @@ Column {
       panel: pv.panel
       width: pv.width
       icon: panel.icPlugin
-      iconColor: modelData.installed ? Color.accent : panel.dim
+      iconColor: modelData.installed ? Commons.Color.accent : panel.dim
       title: modelData.name
       titleColor: modelData.installed ? panel.fg : panel.dim
       detail: R.pluginDetail(modelData)
-      detailColor: modelData.installed && !modelData.recorded ? Color.accent : panel.dim
+      detailColor: modelData.installed && !modelData.recorded ? Commons.Color.accent : panel.dim
       meta: R.pluginWhere(modelData)
       metaColor: !modelData.installed ? panel.warnColor : modelData.settings === "file" ? panel.fg : panel.dim
     }

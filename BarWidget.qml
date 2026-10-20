@@ -2,6 +2,7 @@ import QtQuick
 import Quickshell
 import Quickshell.Io
 import qs.Commons
+import qs.Commons as Commons
 import qs.Ui
 import "replicant.js" as R
 
@@ -99,10 +100,10 @@ BarWidget {
   }
   readonly property color bg: {
     if (root.statusError !== "") return "#e6a23c"
-    if (!asked || !repoState.initialized) return Qt.darker(bar ? bar.barForeground : Color.foreground, 1.6)
+    if (!asked || !repoState.initialized) return Qt.darker(bar ? bar.barForeground : Commons.Color.foreground, 1.6)
     if (root.nLocked > 0 || root.nMissing > 0 || root.nIncoming > 0 || (repoState.behind || 0) > 0) return "#e6a23c"
-    if ((repoState.ahead || 0) > 0 || root.nUnsaved > 0) return Color.accent
-    return bar ? bar.barForeground : Color.foreground
+    if ((repoState.ahead || 0) > 0 || root.nUnsaved > 0) return Commons.Color.accent
+    return bar ? bar.barForeground : Commons.Color.foreground
   }
 
 

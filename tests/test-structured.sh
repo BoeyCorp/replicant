@@ -46,6 +46,7 @@ cat > "$HOME/.config/omarchy/shell.json" <<'JSON'
   }
 }
 JSON
+chmod 640 "$HOME/.config/hypr/bindings.lua" "$HOME/.XCompose" "$HOME/.config/omarchy/shell.json"
 
 # hyprctl never talks to the real compositor: reload succeeds, configerrors is
 # clean, and getoption stays silent unless a test feeds it answers.
@@ -104,6 +105,7 @@ check "one end marker" "1" "$(grep -cF -- '-- replicant:shortcuts:end' "$HOME/.c
 check "backup left behind" "1" "$(ls "$HOME/.config/hypr"/bindings.lua.bak.* 2>/dev/null | wc -l)"
 check "save commits the owner" "shortcuts: add SUPER + R" "$(git -C "$REPO" log -1 --format=%s)"
 check "repo copy carries the binding" "1" "$(grep -c 'SUPER + R' "$REPO/config/hypr/bindings.lua" 2>/dev/null || true)"
+check "shortcut edit keeps the file mode" "640" "$(stat -c %a "$HOME/.config/hypr/bindings.lua")"
 
 section "shortcut add refuses duplicates and bad input"
 check_false "managed duplicate refused" run shortcut add "SUPER + R" "xterm" --apply
@@ -112,6 +114,9 @@ check_false "unmanaged duplicate refused" run shortcut add "SUPER + T" "xterm" -
 check_false "empty keys refused" run shortcut add "" "xterm" --apply
 check_false "empty command refused" run shortcut add "SUPER + Z" "" --apply
 check_false "quotes in keys refused" run shortcut add 'SUPER + "X"' "xterm" --apply
+check_false "shortcut add rejects an extra operand" run shortcut add "SUPER + Z" "xterm" extra --apply
+check_false "shortcut remove rejects an extra operand" run shortcut remove "SUPER + R" extra --apply
+check_false "shortcut remove rejects add options" run shortcut remove "SUPER + R" --desc ignored --apply
 
 section "descriptions and special characters round-trip"
 run shortcut add "SUPER + E" "thunar" --desc 'Files "here" (a & b)' --apply >/dev/null 2>&1
@@ -191,10 +196,13 @@ check "xcompose restarted" "1" "$(grep -c restarted "$REPLICANT_XCOMPOSE_LOG" 2>
 check "unmanaged entry survives" "1" "$(grep -c '<Multi_key> <a> <e>' "$HOME/.XCompose")"
 check "save commits the owner" "compose: add <Multi_key> <s> <s>" "$(git -C "$REPO" log -1 --format=%s)"
 check "repo copy carries the sequence" "1" "$(grep -c '<Multi_key> <s> <s>' "$REPO/config/home/XCompose" 2>/dev/null || true)"
+check "compose edit keeps the file mode" "640" "$(stat -c %a "$HOME/.XCompose")"
 check_false "duplicate compose refused" run compose add '<Multi_key> <s> <s>' 'x' --apply
 check_false "unmanaged duplicate refused" run compose add '<Multi_key> <a> <e>' 'x' --apply
 check_false "bare token refused" run compose add 'Multi_key a' 'x' --apply
 check_false "empty result refused" run compose add '<Multi_key> <q> <q>' '' --apply
+check_false "compose add rejects an extra operand" run compose add '<Multi_key> <q> <q>' x extra --apply
+check_false "compose remove rejects an extra operand" run compose remove '<Multi_key> <s> <s>' extra --apply
 run compose add '<Multi_key> <o> <e>' 'œ "quoted"' --apply >/dev/null 2>&1
 check_contains "unicode and quotes land escaped" 'œ \"quoted\"' "$(cat "$HOME/.XCompose")"
 out=$(run compose list --json)
@@ -207,6 +215,10 @@ check_false "removing an absent sequence refused" run compose remove '<Multi_key
 
 section "compose starts from nothing and survives damage"
 rm -f "$HOME/.XCompose"
+XCOMPOSE_FAIL=1 run compose add '<Multi_key> <c> <c>' '©' --apply >/dev/null 2>&1; rc=$?
+check "failed first restart reports failure" "1" "$rc"
+check_false "failed first restart removes the new file" test -e "$HOME/.XCompose"
+unset XCOMPOSE_FAIL
 run compose add '<Multi_key> <c> <c>' '©' --apply >/dev/null 2>&1; rc=$?
 check "first add creates the file" "0" "$rc"
 check "created file keeps the default include" "1" "$(grep -c 'default/xcompose' "$HOME/.XCompose")"
@@ -240,6 +252,7 @@ check "tray is first on the left" "omarchy.tray" "$(jq -r '.bar.layout.left[0].i
 run bar-layout move omarchy.clock --section right --after omarchy.tray --apply >/dev/null 2>&1
 check "clock keeps its format after a move" "HH:mm" "$(jq -r '[.bar.layout.left[], .bar.layout.center[], .bar.layout.right[]] | map(select(.id=="omarchy.clock"))[0].format' "$HOME/.config/omarchy/shell.json")"
 check "save commits the owner" "bar: move omarchy.tray" "$(git -C "$REPO" log -1 --format=%s)"
+check "bar edit keeps the file mode" "640" "$(stat -c %a "$HOME/.config/omarchy/shell.json")"
 check_false "moving an absent widget refused" run bar-layout move omarchy.nope --section left --apply
 check_false "moving without a section refused" run bar-layout move omarchy.menu --apply
 check_false "bad section refused" run bar-layout move omarchy.menu --section top --apply
@@ -261,6 +274,7 @@ run bar-layout disable omarchy.weather --apply >/dev/null 2>&1; rc=$?
 check "disable succeeds" "0" "$rc"
 check "weather is off the bar" "0" "$(jq '[.bar.layout.left[], .bar.layout.center[], .bar.layout.right[]] | map(select(.id=="omarchy.weather")) | length' "$HOME/.config/omarchy/shell.json")"
 check_false "disabling an absent widget refused" run bar-layout disable omarchy.weather --apply
+check_false "disable rejects an extra operand" run bar-layout disable omarchy.menu extra --apply
 run bar-layout disable left:0 --apply >/dev/null 2>&1; rc=$?
 check "spacer disables by section:index" "0" "$rc"
 check "spacer is gone" "0" "$(jq '[.bar.layout.left[] | select(.id=="omarchy.spacer")] | length' "$HOME/.config/omarchy/shell.json")"

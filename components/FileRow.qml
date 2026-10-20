@@ -3,6 +3,7 @@ import QtQuick.Controls
 import Quickshell
 import Quickshell.Io
 import qs.Commons
+import qs.Commons as Commons
 import qs.Ui
 import "../replicant.js" as R
 
@@ -53,16 +54,16 @@ Item {
     Accessible.description: frow.expanded ? "Expanded. Activate to collapse." : "Collapsed. Activate to expand details."
     Accessible.onPressAction: panel.toggleRow(frow.config.id)
     color: frow.keyboardFocused || frow.keyboardActionFocused
-        ? Style.focusFillFor(panel.fg, Color.accent)
-      : frow.expanded ? Style.selectedFillFor(panel.fg, Color.accent)
-      : hit.containsMouse ? Style.hoverFillFor(panel.fg, Color.accent)
-      : Style.normalFillFor(panel.fg, Color.accent)
+        ? Style.focusFillFor(panel.fg, Commons.Color.accent)
+      : frow.expanded ? Style.selectedFillFor(panel.fg, Commons.Color.accent)
+      : hit.containsMouse ? Style.hoverFillFor(panel.fg, Commons.Color.accent)
+      : Style.normalFillFor(panel.fg, Commons.Color.accent)
     borderSpec: frow.keyboardFocused || frow.keyboardActionFocused
         ? Border.controlSpec("focus", panel.fg,
-                             frow.keyboardActionFocused ? panel.warnColor : Color.accent)
-      : frow.expanded ? Border.controlSpec("selected", panel.fg, Color.accent)
-      : hit.containsMouse ? Border.controlSpec("hover-cursor", panel.fg, Color.accent)
-      : Border.controlSpec("normal", panel.fg, Color.accent)
+                             frow.keyboardActionFocused ? panel.warnColor : Commons.Color.accent)
+      : frow.expanded ? Border.controlSpec("selected", panel.fg, Commons.Color.accent)
+      : hit.containsMouse ? Border.controlSpec("hover-cursor", panel.fg, Commons.Color.accent)
+      : Border.controlSpec("normal", panel.fg, Commons.Color.accent)
 
     MouseArea {
       id: hit
@@ -85,7 +86,7 @@ Item {
         anchors.verticalCenter: parent.verticalCenter
         width: Style.space(20)
         text: frow.selected ? "[x]" : "[ ]"
-        color: frow.selected ? Color.accent : panel.dim
+        color: frow.selected ? Commons.Color.accent : panel.dim
         font.family: panel.ff; font.pixelSize: Style.font.caption
         horizontalAlignment: Text.AlignHCenter
       }
@@ -129,7 +130,7 @@ Item {
             id: profileTag
             visible: frow.scope === "profile"
             text: panel.profileName + " profile"
-            color: Color.accent
+            color: Commons.Color.accent
             font.family: panel.ff; font.pixelSize: Style.font.caption
           }
           Text {
@@ -145,7 +146,7 @@ Item {
                 ? (frow.config.kind + "  ·  mode " + (frow.config.mode || "?")
                    + (frow.config.var_count > 0 ? "  ·  " + frow.config.var_count + " variables" : ""))
                 : panel.whereText(frow.config)
-            color: frow.isSecret && frow.config.kind === "private key" && frow.config.mode !== "600" ? Color.urgent : panel.dim
+            color: frow.isSecret && frow.config.kind === "private key" && frow.config.mode !== "600" ? Commons.Color.urgent : panel.dim
             font.family: panel.ff; font.pixelSize: Style.font.caption
             elide: Text.ElideRight
           }
@@ -160,7 +161,7 @@ Item {
         visible: frow.isModified || frow.isIncoming
         text: frow.isIncoming ? "Restore" : "Save"
         iconText: frow.isIncoming ? panel.icFromRepo : panel.icSave
-        foreground: frow.isIncoming ? panel.warnColor : Color.accent
+        foreground: frow.isIncoming ? panel.warnColor : Commons.Color.accent
         enabled: !panel.busy
         disabledReason: panel.busy ? "Another Replicant operation is running." : ""
         tooltipText: (!enabled ? "Disabled while another operation runs. " : "") + (frow.isIncoming
@@ -179,7 +180,7 @@ Item {
           anchors.verticalCenter: parent.verticalCenter
           width: Style.spacing.hairline
           height: Style.space(22)
-          color: Style.normalBorderFor(panel.fg, Color.accent)
+          color: Style.normalBorderFor(panel.fg, Commons.Color.accent)
         }
         Text {
           id: chevron

@@ -3,6 +3,7 @@ import QtQuick.Controls
 import Quickshell
 import Quickshell.Io
 import qs.Commons
+import qs.Commons as Commons
 import qs.Ui
 
 // What the last action did, in one line: a tick or a cross, the sentence
@@ -31,7 +32,7 @@ Item {
       anchors.verticalCenter: parent.verticalCenter
       width: Style.space(20)
       text: rb.running ? panel.icRefresh : panel.lastCancelled || panel.lastWarn ? panel.icClose : panel.lastOk ? panel.icCheck : panel.icAlert
-      color: rb.running ? Color.accent : panel.lastCancelled || panel.lastWarn ? panel.warnColor : panel.lastOk ? panel.okColor : Color.urgent
+      color: rb.running ? Commons.Color.accent : panel.lastCancelled || panel.lastWarn ? panel.warnColor : panel.lastOk ? panel.okColor : Commons.Color.urgent
       font.family: panel.ff; font.pixelSize: Style.font.body
       horizontalAlignment: Text.AlignHCenter
       rotation: 0
@@ -48,7 +49,7 @@ Item {
       anchors.rightMargin: Style.space(6)
       anchors.verticalCenter: parent.verticalCenter
       text: rb.running ? panel.stageText : panel.resultLine
-      color: rb.running ? panel.fg : panel.lastCancelled || panel.lastWarn ? panel.warnColor : panel.lastOk ? panel.fg : Color.urgent
+      color: rb.running ? panel.fg : panel.lastCancelled || panel.lastWarn ? panel.warnColor : panel.lastOk ? panel.fg : Commons.Color.urgent
       font.family: panel.ff; font.pixelSize: Style.font.caption
       elide: Text.ElideRight
     }

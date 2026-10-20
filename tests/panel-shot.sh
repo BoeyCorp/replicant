@@ -36,6 +36,7 @@ cat > "$work/Ui/KeyboardPanel.qml" <<'QML'
 import QtQuick
 import Quickshell
 import qs.Commons
+import qs.Commons as Commons
 
 // The real KeyboardPanel is a layer-shell window. This one draws the same
 // card as a plain item, so that the panel renders in any window.
@@ -47,7 +48,7 @@ Item {
   property int padding: Style.spacing.popupPadding
   property int contentWidth: Style.space(280)
   property int contentHeight: Style.space(200)
-  property var borderSpec: Border.surfaceSpec("popups", "border", Color.popups.border, Math.max(1, Style.space(2)))
+  property var borderSpec: Border.surfaceSpec("popups", "border", Commons.Color.popups.border, Math.max(1, Style.space(2)))
   property bool open: false
   property Item focusTarget: null
   default property alias contentItem: holder.children
@@ -66,7 +67,7 @@ Item {
   BorderSurface {
     id: card
     anchors.fill: parent
-    color: Color.popups.background
+    color: Commons.Color.popups.background
     borderSpec: root.borderSpec
     padding: root.padding
     radius: Style.cornerRadius
@@ -87,12 +88,13 @@ import QtQuick
 import Quickshell
 import Quickshell.Io
 import qs.Commons
+import qs.Commons as Commons
 
 ShellRoot {
   QtObject {
     id: fakeBar
-    property color foreground: Color.foreground
-    property color barForeground: Color.foreground
+    property color foreground: Commons.Color.foreground
+    property color barForeground: Commons.Color.foreground
     property string fontFamily: Style.font.family
     property string position: "top"
     function run(cmd) {}

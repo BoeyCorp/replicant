@@ -3,6 +3,7 @@ import QtQuick.Controls
 import Quickshell
 import Quickshell.Io
 import qs.Commons
+import qs.Commons as Commons
 import qs.Ui
 
 Item {
@@ -116,7 +117,7 @@ Item {
       anchors.verticalCenter: parent.verticalCenter
       width: Style.space(20)
       text: srow.setting.available !== true ? "·" : srow.customised ? "●" : "○"
-      color: srow.customised ? Color.accent : panel.dim
+      color: srow.customised ? Commons.Color.accent : panel.dim
       font.family: panel.ff; font.pixelSize: Style.font.body
       horizontalAlignment: Text.AlignHCenter
     }
@@ -214,22 +215,24 @@ Item {
         }
       }
 
-      // The slider moves quickly and the field accepts the exact decimal a
-      // person needs. The field sends the raw accepted number to the existing
-      // queue, so it does not add a second command path or step restriction.
+      // Decimals are typed like pixel values: one field, Enter to apply.
+      // There is no slider: dragging one fired an apply per release and the
+      // fixed debounce behind it made every drag feel late. The field sends
+      // the raw accepted number to the existing queue, so it does not add a
+      // second command path or step restriction.
       Row {
         visible: srow.isFloat
         anchors.right: parent.right
         anchors.verticalCenter: parent.verticalCenter
-        spacing: Style.space(4)
+        spacing: Style.space(5)
         TextField {
           id: floatField
           objectName: "setting-float-input"
           anchors.verticalCenter: parent.verticalCenter
-          width: Style.space(48)
+          width: Style.space(96)
           enabled: srow.usable
           text: srow.floatText()
-          foreground: panel.fg; accent: Color.accent; font.family: panel.mono
+          foreground: panel.fg; accent: Commons.Color.accent; font.family: panel.mono
           inputMethodHints: Qt.ImhFormattedNumbersOnly
           property string queuedValue: ""
           function submit() {
@@ -250,16 +253,11 @@ Item {
           ToolTip.visible: hovered && !enabled
           ToolTip.text: srow.unavailableReason
         }
-        PanelSlider {
+        Text {
           anchors.verticalCenter: parent.verticalCenter
-          width: Style.space(76)
-          bar: panel.bar
-          minimum: srow.isFloat && typeof srow.setting.min === "number" ? srow.setting.min : 0
-          maximum: srow.isFloat && typeof srow.setting.max === "number" ? srow.setting.max : 1
-          step: srow.isFloat && typeof srow.setting.display_step === "number" && srow.setting.display_step > 0 ? srow.setting.display_step : 0.05
-          value: srow.isFloat && typeof srow.setting.value === "number" ? srow.setting.value : 0
-          enabled: srow.usable
-          onReleased: function(v) { if (srow.usable) panel.queueSetting(srow.setting.id, String(v)) }
+          width: Style.space(26)
+          text: srow.setting.display_unit || srow.setting.unit || ""
+          color: panel.dim; font.family: panel.ff; font.pixelSize: Style.font.caption
         }
       }
 
@@ -270,7 +268,7 @@ Item {
         anchors.verticalCenter: parent.verticalCenter
         checked: srow.setting.value === true || srow.setting.value === "true"
         foreground: panel.fg
-        accent: Color.accent
+        accent: Commons.Color.accent
         onToggled: if (srow.usable) panel.doSetSetting(srow.setting.id,
                       (srow.setting.value === true || srow.setting.value === "true") ? "false" : "true")
         ToolTip.visible: hovered && !enabled
@@ -321,7 +319,7 @@ Item {
         width: parent.width
         text: srow.isText ? String(srow.setting.value || "") : ""
         placeholderText: srow.setting.id === "input.kbVariant" || srow.setting.id === "input.kbOptions" ? "none" : ""
-        foreground: panel.fg; accent: Color.accent; font.family: panel.mono
+        foreground: panel.fg; accent: Commons.Color.accent; font.family: panel.mono
         property string queuedValue: ""
         function submit() {
           var raw = String(text)

@@ -3,6 +3,7 @@ import QtQuick.Controls
 import Quickshell
 import Quickshell.Io
 import qs.Commons
+import qs.Commons as Commons
 import qs.Ui
 import "../replicant.js" as R
 
@@ -60,21 +61,21 @@ Column {
       spacing: Style.space(8)
       Button {
         text: "Restart shell"; iconText: panel.icRefresh; bordered: true
-        foreground: panel.fg; accent: Color.accent; fontFamily: panel.ff
+        foreground: panel.fg; accent: Commons.Color.accent; fontFamily: panel.ff
         enabled: !panel.applyBusy
         tooltipText: panel.applyBusy ? R.actionDisabledReason({ busy: true }) : "Restart the Omarchy shell. Asks first."
         onClicked: panel.askApplyShell()
       }
       Button {
         text: "Reload Hyprland"; iconText: panel.icRefresh; bordered: true
-        foreground: panel.fg; accent: Color.accent; fontFamily: panel.ff
+        foreground: panel.fg; accent: Commons.Color.accent; fontFamily: panel.ff
         enabled: !panel.applyBusy
         tooltipText: panel.applyBusy ? R.actionDisabledReason({ busy: true }) : "Reload the Hyprland configuration now."
         onClicked: panel.doApplyHyprland()
       }
       Button {
         text: "Restart terminals"; iconText: panel.icRefresh; bordered: true
-        foreground: panel.fg; accent: Color.accent; fontFamily: panel.ff
+        foreground: panel.fg; accent: Commons.Color.accent; fontFamily: panel.ff
         enabled: !panel.applyBusy
         tooltipText: panel.applyBusy ? R.actionDisabledReason({ busy: true }) : "Reload supported terminals after config changes."
         onClicked: panel.doApplyTerminal()
@@ -101,7 +102,7 @@ Column {
     }
     Button {
       text: "Retry"; iconText: panel.icRefresh; bordered: true
-      foreground: panel.fg; accent: Color.accent; fontFamily: panel.ff
+      foreground: panel.fg; accent: Commons.Color.accent; fontFamily: panel.ff
       onClicked: panel.retrySettings()
     }
   }

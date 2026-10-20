@@ -222,7 +222,7 @@ A plugin with a settings file of its own, `~/.config/omarchy/<name>.json`, also 
 - **Counts that explain themselves.** Each count on the Overview names its files when you point at
   it, and a click opens those files in **Configs**.
 - **A preview you can read.** Restore and reset previews open in the panel, in full.
-- **No terminal pop-ups.** Editing opens your editor, a diff renders in the panel, and a destructive
+- **Clear actions.** Editing opens your editor, a diff renders in the panel, and a destructive
   action confirms in the panel.
 
 ### Second machine
@@ -242,7 +242,7 @@ Panel, **Restore**, *Preview* shows what would change, and touches nothing.
   committed. The CLI does the same with `replicant set <id> <value>`, in the stored unit.
   Hyprland values live in a managed block at the end of `hypr/input.lua` and
   `hypr/looknfeel.lua`; everything outside it is left byte-for-byte alone. Float
-  settings accept an exact decimal beside the slider.
+  settings accept an exact decimal in a text field. Press Enter or leave the field to apply it.
 - **Scopes and profiles**: open a row in **Configs** and pick **Shared**, your profile, or **Off**.
   The row shows the change at once. Off publishes that policy once, then future saves skip the file.
   Git keeps the last saved copy. In a terminal: `scope` and `profile`.
@@ -261,10 +261,10 @@ Panel, **Restore**, *Preview* shows what would change, and touches nothing.
   the connected monitor offers. `desc:` serials never print.
 - **Missing software**: panel, **Restore**, lists the packages of the
   newest-saved machine that are missing here, official and AUR separately.
-  One Install button each runs the shown `omarchy pkg add` command. The
-  terminal does the same with `replicant reconcile` and
-  `replicant reconcile install <pkg...> [--aur] --apply`. Nothing is ever
-  removed, and base and ignored packages are never proposed.
+  One Install button opens a visible terminal for the shown `omarchy pkg add`
+  command. The CLI keeps an explicit source with `replicant reconcile` and
+  `replicant reconcile install <pkg...> [--aur] [--from <machine>] --apply`.
+  Nothing is ever removed, and base and ignored packages are never proposed.
 - **A key for the panel**: bind `omarchy shell replicant toggle` in `~/.config/hypr/bindings.lua`.
   `omarchy shell replicant tab settings` opens the panel on one tab.
 - **The command line**: the panel does not need it. To put `replicant` on your `PATH`, run

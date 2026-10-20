@@ -767,17 +767,17 @@ EOF
 chmod +x "$TMP/applybin/setsid" "$TMP/applybin/hyprctl" "$TMP/applybin/omarchy"
 APPLY_SAVED_PATH="$PATH"
 export PATH="$TMP/applybin:$PATH"
-calls_before=$(grep -c . "$STUB_LOG" 2>/dev/null || echo 0)
+calls_before=$(grep -c . "$STUB_LOG" 2>/dev/null || true)
 check "apply shell previews with rc=0" "0" "$(run apply shell >/dev/null 2>&1; echo $?)"
 check_contains "…and names the exact command" "omarchy restart shell" "$(run apply shell 2>&1)"
-check "…and runs nothing" "$calls_before" "$(grep -c . "$STUB_LOG" 2>/dev/null || echo 0)"
+check "…and runs nothing" "$calls_before" "$(grep -c . "$STUB_LOG" 2>/dev/null || true)"
 check "apply shell --apply starts it detached" "0" "$(run apply shell --apply >/dev/null 2>&1; echo $?)"
 check_contains "…through setsid" "setsid -f omarchy restart shell" "$(cat "$STUB_LOG")"
 check "apply hyprland previews with rc=0" "0" "$(run apply hyprland >/dev/null 2>&1; echo $?)"
 check_contains "…and names the exact command" "hyprctl reload" "$(run apply hyprland 2>&1)"
-hypr_before=$(grep -c "hyprctl reload" "$STUB_LOG" 2>/dev/null || echo 0)
+hypr_before=$(grep -c "hyprctl reload" "$STUB_LOG" 2>/dev/null || true)
 run apply hyprland --apply >/dev/null 2>&1
-check "apply hyprland --apply reloads" "$((hypr_before + 1))" "$(grep -c "hyprctl reload" "$STUB_LOG" 2>/dev/null || echo 0)"
+check "apply hyprland --apply reloads" "$((hypr_before + 1))" "$(grep -c "hyprctl reload" "$STUB_LOG" 2>/dev/null || true)"
 export HYPRCTL_MODE=error
 check_false "a Hyprland config error fails the apply" "$CLI" apply hyprland --apply
 check_contains "…and names the error" "mock: decoration blur error" "$(run apply hyprland --apply 2>&1)"

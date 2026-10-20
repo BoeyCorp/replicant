@@ -3,6 +3,29 @@
 Complete one small, verifiable task at a time. When a task is complete, update its checkbox and
 `ROADMAP.md` in the same change.
 
+## Portable controls review after 0.41.0
+
+- [x] Keep the selected reconciliation source through confirmation and installation.
+- [x] Reject missing, empty, unsafe, and non-existent reconciliation sources.
+- [x] Open package installation in Omarchy's visible terminal presentation.
+- [x] Preserve existing file modes when structured editors replace content.
+- [x] Remove a newly created compose file when its restart hook fails.
+- [x] Reject extra operands and options in the new structured and desktop editors.
+- [x] Repair the CLI assertion that produced two numeric lines when `grep` found no match.
+- [x] Review decimal controls and update their documentation.
+- [x] Resolve the QML color name collision and verify the visual fixtures.
+- [x] Run the complete verification matrix for version 0.41.1.
+
+Review evidence:
+
+- `./tests/run-all.sh` passes, including G0 through G8.
+- All eight offscreen screenshots match. A QML color name collision caused
+  the earlier screenshot failures and has been corrected.
+- `omarchy plugin validate .`, `qmllint`, and the version check pass.
+- Status takes 90 ms and brief status takes 80 ms. Their budgets are 250 ms
+  and 100 ms. The settings payload median is 9.583 seconds, below its
+  11-second budget.
+
 ## Settings hardening after 0.39.0
 
 Follow the [Settings hardening plan](settings-hardening-plan.md) for scope, acceptance criteria, and release checks.
@@ -573,9 +596,10 @@ Notes (verified against the live repo, `pacman -Q`, and `omarchy pkg add/aur add
   the exact install commands, then plugins and themes with origins and the
   `install-plugin --check` review step. Base and ignored sets are filtered
   on both sides, and nothing is ever proposed for removal.
-- `reconcile install <pkgs...> [--aur] [--apply]` validates every name
-  against the missing set, prints `Would run: omarchy pkg add ...`, and
-  runs it attached (visible) only with `--apply`. Plugins keep their
+- `reconcile install <pkgs...> [--aur] [--from <machine>] [--apply]` validates
+  every name against that source's missing set, prints
+  `Would run: omarchy pkg add ...`, and runs it only with `--apply`. The panel
+  opens the command in a visible terminal. Plugins keep their
   existing `--check`/pinned-revision review flow.
 - The Restore tab gains a "Packages to install" card from the new
   `pending_packages` status field, beside the existing plugins card.

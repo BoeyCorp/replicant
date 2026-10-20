@@ -3,6 +3,7 @@ import QtQuick.Controls
 import Quickshell
 import Quickshell.Io
 import qs.Commons
+import qs.Commons as Commons
 import qs.Ui
 
 // The header of every card (Card.qml). The icon sits in the same column as
@@ -60,7 +61,7 @@ Item {
       width: Style.space(20)
       horizontalAlignment: Text.AlignHCenter
       text: ch.icon
-      color: (ch.collapsible && hitbox.containsMouse) || ch.expanded ? Color.accent : panel.fg
+      color: (ch.collapsible && hitbox.containsMouse) || ch.expanded ? Commons.Color.accent : panel.fg
       font.family: panel.ff; font.pixelSize: Style.font.iconLarge
     }
     Column {
@@ -99,7 +100,7 @@ Item {
         visible: ch.statusText !== ""
         horizontalAlignment: Text.AlignRight
         text: ch.statusText
-        color: ch.statusTone === "warn" ? panel.warnColor : ch.statusTone === "accent" ? Color.accent : panel.dim
+        color: ch.statusTone === "warn" ? panel.warnColor : ch.statusTone === "accent" ? Commons.Color.accent : panel.dim
         font.family: panel.ff; font.pixelSize: Style.font.caption
         elide: Text.ElideRight
       }

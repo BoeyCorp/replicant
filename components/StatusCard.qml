@@ -3,6 +3,7 @@ import QtQuick.Controls
 import Quickshell
 import Quickshell.Io
 import qs.Commons
+import qs.Commons as Commons
 import qs.Ui
 
 // The top of the Overview tab: what state this machine is in, in one sentence,
@@ -19,13 +20,13 @@ BorderSurface {
   readonly property var head: panel.head
   readonly property color toneColor: sc.head.tone === "ok" ? panel.okColor
                                    : sc.head.tone === "warn" ? panel.warnColor
-                                   : sc.head.tone === "accent" ? Color.accent : panel.dim
+                                   : sc.head.tone === "accent" ? Commons.Color.accent : panel.dim
 
   // Height from the column, which is anchored to the top and never centred.
   implicitHeight: col.implicitHeight + Style.spacing.controlPaddingY * 2 + Style.space(8)
   radius: Style.cornerRadius
   color: Qt.rgba(sc.toneColor.r, sc.toneColor.g, sc.toneColor.b, 0.07)
-  borderSpec: Border.controlSpec("normal", panel.fg, Color.accent)
+  borderSpec: Border.controlSpec("normal", panel.fg, Commons.Color.accent)
 
   Column {
     id: col
@@ -86,7 +87,7 @@ BorderSurface {
       Button {
         visible: panel.nLocked > 0
         text: "Create encryption key"; iconText: panel.icKey; bordered: true
-        foreground: panel.warnColor; accent: Color.accent; fontFamily: panel.ff
+        foreground: panel.warnColor; accent: Commons.Color.accent; fontFamily: panel.ff
         enabled: panel.ready && !panel.busy
         tooltipText: "Create this setup's encryption key. Save encrypts your secret files after this step."
         onClicked: panel.ask("key-init", "",
@@ -95,8 +96,8 @@ BorderSurface {
       }
       Button {
         text: panel.remoteState === "remote-missing" ? "Create private repo" : (panel.remoteState === "ahead" ? "Retry push" : "Save to GitHub"); iconText: panel.icPush; bordered: true
-        foreground: panel.nDirty > 0 || panel.nAhead > 0 ? Color.accent : panel.fg
-        accent: Color.accent; fontFamily: panel.ff
+        foreground: panel.nDirty > 0 || panel.nAhead > 0 ? Commons.Color.accent : panel.fg
+        accent: Commons.Color.accent; fontFamily: panel.ff
         iconSpinning: panel.saving
         enabled: panel.ready && !panel.busy
         tooltipText: !panel.ready ? "Disabled: configure a repository first."
@@ -108,7 +109,7 @@ BorderSurface {
       Button {
         text: "Pull"; iconText: panel.icPull; bordered: true
         foreground: panel.nBehind > 0 ? panel.warnColor : panel.fg
-        accent: Color.accent; fontFamily: panel.ff
+        accent: Commons.Color.accent; fontFamily: panel.ff
         iconSpinning: panel.pulling
         enabled: panel.ready && !panel.busy
         tooltipText: !panel.ready ? "Disabled: configure a repository first."
@@ -137,7 +138,7 @@ BorderSurface {
           horizontalPadding: Style.space(8)
           verticalPadding: Style.space(3)
           foreground: modelData.tone === "warn" ? panel.warnColor
-                    : modelData.tone === "accent" ? Color.accent
+                    : modelData.tone === "accent" ? Commons.Color.accent
                     : modelData.tone === "dim" ? panel.dim : panel.fg
           fontFamily: panel.ff
           tooltipText: modelData.tooltip

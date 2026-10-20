@@ -3,6 +3,7 @@ import QtQuick.Controls
 import Quickshell
 import Quickshell.Io
 import qs.Commons
+import qs.Commons as Commons
 import qs.Ui
 import "../replicant.js" as R
 
@@ -40,7 +41,7 @@ Card {
       spacing: Style.space(4)
       fontSize: Style.font.bodySmall
       foreground: panel.fg
-      accent: Color.accent
+      accent: Commons.Color.accent
       fontFamily: panel.ff
       value: panel.addMode
       options: [
@@ -69,7 +70,7 @@ Card {
     leftPadding: Style.spacing.rowPaddingX
     Button {
       text: "Retry"; iconText: panel.icRefresh; bordered: true
-      foreground: panel.fg; accent: Color.accent; fontFamily: panel.ff
+      foreground: panel.fg; accent: Commons.Color.accent; fontFamily: panel.ff
       onClicked: { panel.suggestLoaded = false; panel.loadSuggestions() }
     }
   }
@@ -104,7 +105,7 @@ Card {
       anchors.verticalCenter: parent.verticalCenter
       placeholderText: "Type a path: ~/Projects/app/.env"
       foreground: panel.fg
-      accent: Color.accent
+      accent: Commons.Color.accent
       font.family: panel.ff
       onActiveFocusChanged: panel.noteFocus(pathField, activeFocus)
       onAccepted: if (panel.trackTyped(text, false)) text = ""
@@ -183,7 +184,7 @@ Card {
           : panel.browseData.error ? R.prettyPath(panel.browseData.dir, panel.repoState.home || "") + " " + panel.browseData.error
           : R.prettyPath(panel.browseData.dir || "", panel.repoState.home || "")
             + "   " + R.plural((panel.browseData.entries || []).length, "entry", "entries")
-      color: panel.browseData.error ? Color.urgent : panel.dim
+      color: panel.browseData.error ? Commons.Color.urgent : panel.dim
       font.family: panel.mono; font.pixelSize: Style.font.caption
       elide: Text.ElideLeft
     }

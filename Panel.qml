@@ -3,6 +3,7 @@ import QtQuick.Controls
 import Quickshell
 import Quickshell.Io
 import qs.Commons
+import qs.Commons as Commons
 import qs.Ui
 import "components"
 import "replicant.js" as R
@@ -394,7 +395,7 @@ Panel {
   readonly property bool updateChecking: controller.isRunning("update-check")
   property string busyLabel: ""
 
-  readonly property color fg: bar ? bar.foreground : Color.foreground
+  readonly property color fg: bar ? bar.foreground : Commons.Color.foreground
   readonly property color dim: Qt.darker(fg, 1.55)
   readonly property color okColor: "#4caf50"
   // The same amber the bar icon already uses for "there is something on GitHub
@@ -477,7 +478,7 @@ Panel {
   function stateColor(st) {
     var role = R.stateRole(st)
     if (role === "warn") return root.warnColor
-    if (role === "accent") return Color.accent
+    if (role === "accent") return Commons.Color.accent
     if (role === "ok") return root.okColor
     return root.dim
   }
@@ -1246,10 +1247,17 @@ Panel {
     else if (a === "install-package") {
       var packageParts = arg.split("\t")
       var packageKind = packageParts[0] === "aur" ? "AUR" : "official"
-      root.busyLabel = "Installing " + packageParts[1] + "…"
-      command = [root.cli, "reconcile", "install", packageParts[1], "--apply"]
-      if (packageParts[0] === "aur") command.push("--aur")
-      label = "Install " + packageKind
+      var packageCommand = root.shellQuote(root.cli) + " reconcile install " + root.shellQuote(packageParts[1])
+      if (packageParts[0] === "aur") packageCommand += " --aur"
+      if (packageParts[2]) packageCommand += " --from " + root.shellQuote(packageParts[2])
+      packageCommand += " --apply"
+      root.busyLabel = ""
+      root.lastTitle = "Install " + packageKind
+      root.lastOk = true; root.lastWarn = false; root.lastCancelled = false
+      root.lastOutput = "Installation opened in a visible terminal. Replicant validates the package against "
+                      + (packageParts[2] || "the newest saved machine") + " before it runs Omarchy."
+      root.runVisible(packageCommand)
+      return
     }
     else if (a === "install-plugin") {
       var pluginParts = arg.split("\t")
@@ -1302,7 +1310,7 @@ Panel {
   // The panel runs what the terminal would run; nothing here ever removes.
   function askInstallPackage(kind, id) {
     var cmd = kind === "aur" ? "omarchy pkg aur add " + id : "omarchy pkg add " + id
-    root.ask("install-package", kind + "\t" + id,
+    root.ask("install-package", kind + "\t" + id + "\t" + String(root.pendingPackages.source || ""),
              "Install the " + (kind === "aur" ? "AUR" : "official") + " package \"" + id + "\"?\n\nRuns, visibly:\n" + cmd
              + "\n\nBase and ignored packages are never proposed, and nothing is removed.", "Install")
   }
@@ -1472,7 +1480,7 @@ Panel {
   // GitHub login needs a terminal. Repository URLs use the panel dialog so a
   // terminal wrapper cannot lose the field that collects the URL.
   function run(cmd) { if (bar) bar.run(cmd) }
-  function runVisible(cmd) { root.run("omarchy-launch-floating-terminal-with-presentation " + root.shellQuote(cmd)) }
+  function runVisible(cmd) { root.run("omarchy launch floating terminal with presentation " + root.shellQuote(cmd)) }
   function doCreate() { root.openCreateDialog() }
   function doClone()  { root.openCloneDialog() }
   function openUrl(url) { root.run("xdg-open " + root.shellQuote(url)); root.close() }
@@ -1663,15 +1671,15 @@ Panel {
           visible: root.advice !== "" && root.activeTab !== "overview"
           implicitHeight: Style.space(30)
           radius: Style.cornerRadius
-          color: Qt.rgba(Color.accent.r, Color.accent.g, Color.accent.b, 0.10)
-          borderSpec: Border.controlSpec("focus", root.fg, Color.accent)
+          color: Qt.rgba(Commons.Color.accent.r, Commons.Color.accent.g, Commons.Color.accent.b, 0.10)
+          borderSpec: Border.controlSpec("focus", root.fg, Commons.Color.accent)
           Text {
             anchors.fill: parent
             anchors.leftMargin: Style.spacing.rowPaddingX
             anchors.rightMargin: Style.spacing.rowPaddingX
             verticalAlignment: Text.AlignVCenter
             text: root.advice
-            color: Color.accent
+            color: Commons.Color.accent
             font.family: root.ff
             font.pixelSize: Style.font.caption
             elide: Text.ElideRight
@@ -1684,7 +1692,7 @@ Panel {
           options: root.tabs
           value: root.activeTab
           foreground: root.fg
-          accent: Color.accent
+          accent: Commons.Color.accent
           fontFamily: root.ff
           focusable: root.keyboardFocus.kind === "tab"
           onChanged: function(v) { root.activeTab = v }
@@ -1739,7 +1747,7 @@ Panel {
             }
             Button {
               text: "Retry"; iconText: root.icRefresh; bordered: true
-              foreground: root.fg; accent: Color.accent; fontFamily: root.ff
+              foreground: root.fg; accent: Commons.Color.accent; fontFamily: root.ff
               onClicked: root.retryStatus()
             }
           }
@@ -1794,14 +1802,14 @@ Panel {
             Button {
               visible: root.setupStatusError !== ""
               text: "Retry"; iconText: root.icRefresh; bordered: true
-              foreground: root.fg; accent: Color.accent; fontFamily: root.ff
+              foreground: root.fg; accent: Commons.Color.accent; fontFamily: root.ff
               onClicked: { root.setupStatusLoaded = false; root.loadSetupStatus() }
             }
             Row {
               spacing: Style.space(8)
               Button {
                 text: "Create private repo"; iconText: root.icPlus; bordered: true
-                foreground: root.fg; accent: Color.accent; fontFamily: root.ff
+                foreground: root.fg; accent: Commons.Color.accent; fontFamily: root.ff
                 enabled: root.setupStatusLoaded && root.githubReady()
                 tooltipText: !root.setupStatusLoaded ? "Checking GitHub setup." : !root.githubReady() ? "Log in to GitHub before creating the repo." : "Creates the private repo and pushes this machine into it"
                 onClicked: root.doCreate()
@@ -1856,8 +1864,8 @@ Panel {
         width: Math.min(parent.width - Style.space(24), Style.space(520))
         implicitHeight: createColumn.implicitHeight + Style.space(24)
         z: 55
-        color: Color.popups.background
-        borderSpec: Border.controlSpec("focus", root.fg, Color.accent)
+        color: Commons.Color.popups.background
+        borderSpec: Border.controlSpec("focus", root.fg, Commons.Color.accent)
         radius: Style.cornerRadius
         Column {
           id: createColumn
@@ -1878,7 +1886,7 @@ Panel {
             width: parent.width
             text: root.createRepoName
             placeholderText: "Repository name"
-            foreground: root.fg; accent: Color.accent; font.family: root.ff
+            foreground: root.fg; accent: Commons.Color.accent; font.family: root.ff
             onTextChanged: root.createRepoName = text
             onActiveFocusChanged: root.noteFocus(createNameField, activeFocus)
             // Enter moves to the explicit action. It must not create a remote
@@ -1895,12 +1903,12 @@ Panel {
             Text { text: "Transport"; color: root.dim; font.family: root.ff; font.pixelSize: Style.font.caption }
             Button {
               text: "HTTPS"; bordered: true; fontFamily: root.ff
-              foreground: root.createTransport === "https" ? Color.accent : root.dim
+              foreground: root.createTransport === "https" ? Commons.Color.accent : root.dim
               onClicked: root.createTransport = "https"
             }
             Button {
               text: root.sshReady() ? "SSH" : "SSH unavailable"; bordered: true; fontFamily: root.ff
-              foreground: root.createTransport === "ssh" ? Color.accent : root.dim
+              foreground: root.createTransport === "ssh" ? Commons.Color.accent : root.dim
               enabled: root.sshReady()
               tooltipText: root.sshReady() ? "Use GitHub SSH for push and pull" : "Configure a working SSH key first"
               onClicked: root.createTransport = "ssh"
@@ -1921,7 +1929,7 @@ Panel {
             Button {
               id: createRepoButton
               text: "Create private repo"; iconText: root.icPlus; bordered: true
-              foreground: Color.accent; accent: Color.accent; fontFamily: root.ff
+              foreground: Commons.Color.accent; accent: Commons.Color.accent; fontFamily: root.ff
               enabled: root.githubReady() && !createDialog.createRepoNameFieldInvalid()
               onClicked: root.createRepo()
             }
@@ -1939,8 +1947,8 @@ Panel {
         width: Math.min(parent.width - Style.space(24), Style.space(520))
         implicitHeight: cloneColumn.implicitHeight + Style.space(24)
         z: 55
-        color: Color.popups.background
-        borderSpec: Border.controlSpec("focus", root.fg, Color.accent)
+        color: Commons.Color.popups.background
+        borderSpec: Border.controlSpec("focus", root.fg, Commons.Color.accent)
         radius: Style.cornerRadius
         Column {
           id: cloneColumn
@@ -1961,7 +1969,7 @@ Panel {
             width: parent.width
             placeholderText: "https://github.com/you/your-repo.git"
             text: root.cloneRepoUrl
-            foreground: root.fg; accent: Color.accent; font.family: root.ff
+            foreground: root.fg; accent: Commons.Color.accent; font.family: root.ff
             onTextChanged: root.cloneRepoUrl = text
             onActiveFocusChanged: root.noteFocus(cloneUrlField, activeFocus)
             onAccepted: cloneRepoButton.forceActiveFocus()
@@ -1980,7 +1988,7 @@ Panel {
             Button {
               id: cloneRepoButton
               text: "Connect"; iconText: root.icBranch; bordered: true
-              foreground: Color.accent; accent: Color.accent; fontFamily: root.ff
+              foreground: Commons.Color.accent; accent: Commons.Color.accent; fontFamily: root.ff
               enabled: root.cloneRepoUrl.trim() !== ""
               onClicked: root.cloneRepo()
             }
@@ -2006,8 +2014,8 @@ Panel {
         width: Math.min(parent.width, Style.space(500))
         implicitHeight: helpColumn.implicitHeight + Style.space(24)
         z: 70
-        color: Color.popups.background
-        borderSpec: Border.controlSpec("focus", root.fg, Color.accent)
+        color: Commons.Color.popups.background
+        borderSpec: Border.controlSpec("focus", root.fg, Commons.Color.accent)
         radius: Style.cornerRadius
         Column {
           id: helpColumn

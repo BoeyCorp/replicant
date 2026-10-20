@@ -3,6 +3,7 @@ import QtQuick.Controls
 import Quickshell
 import Quickshell.Io
 import qs.Commons
+import qs.Commons as Commons
 import qs.Ui
 import "../replicant.js" as R
 
@@ -83,7 +84,7 @@ Item {
         spacing: Style.space(4)
         fontSize: Style.font.bodySmall
         foreground: panel.fg
-        accent: Color.accent
+        accent: Commons.Color.accent
         fontFamily: panel.ff
         value: fd.scope
         options: fd.isSecret

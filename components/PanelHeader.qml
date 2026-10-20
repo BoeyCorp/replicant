@@ -3,6 +3,7 @@ import QtQuick.Controls
 import Quickshell
 import Quickshell.Io
 import qs.Commons
+import qs.Commons as Commons
 import qs.Ui
 
 // The panel's title: the plugin's name and version, this machine's state in a
@@ -20,7 +21,7 @@ Item {
     anchors.left: parent.left
     anchors.verticalCenter: parent.verticalCenter
     text: panel.icReplicant
-    color: Color.accent
+    color: Commons.Color.accent
     font.family: panel.ff
     font.pixelSize: Math.round(Style.font.display * 1.25)
   }
@@ -92,8 +93,8 @@ Item {
       fontSize: Style.font.bodySmall
       horizontalPadding: Style.space(8)
       verticalPadding: Style.space(4)
-      foreground: Color.accent
-      accent: Color.accent
+      foreground: Commons.Color.accent
+      accent: Commons.Color.accent
       fontFamily: panel.ff
       enabled: !panel.busy
       tooltipText: panel.busy ? "Disabled: another Replicant operation is running." : panel.updateTooltip
@@ -104,7 +105,7 @@ Item {
       iconText: panel.icRefresh
       iconSpinning: panel.operationRunning
       bordered: false
-      foreground: panel.operationRunning ? Color.accent : panel.dim
+      foreground: panel.operationRunning ? Commons.Color.accent : panel.dim
       fontFamily: panel.ff
       tooltipText: panel.operationRunning ? panel.busyLabel : "Re-check this machine against the repo  (r)"
       onClicked: panel.refresh()

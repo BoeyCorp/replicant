@@ -30,6 +30,12 @@ reconcile_default_source() {
   reconcile_machines | head -n1 | cut -f1
 }
 
+# reconcile_valid_machine <name> — accept one directory component only.
+reconcile_valid_machine() {
+  local name="${1:-}"
+  [[ "$name" =~ ^[A-Za-z0-9._-]+$ && ${#name} -le 100 && "$name" != "." && "$name" != ".." ]]
+}
+
 # reconcile_known_set — the base set plus the ignored list, the packages no
 # machine should ever propose. Mirrors regenerate_inventory so a delta file
 # recorded before an ignore-list change is still filtered.
@@ -67,7 +73,7 @@ reconcile_local_installed() {
 # minus the base and ignored set. One name per line, sorted, deduplicated.
 reconcile_missing() {
   local machine="$1" which="$2"
-  [[ "$machine" =~ ^[A-Za-z0-9._-]+$ ]] || { echo "reconcile: bad machine name '$machine'" >&2; return 1; }
+  reconcile_valid_machine "$machine" || { echo "reconcile: bad machine name '$machine'" >&2; return 1; }
   [[ -d "$STATE_ROOT/$machine" ]] || { echo "reconcile: no saved machine '$machine'" >&2; return 1; }
   local f_src f_exc
   f_src=$(mktemp) || return 1
@@ -126,17 +132,23 @@ reconcile_missing_json() {
 }
 
 reconcile_preview() {
-  local json=0 src=""
+  local json=0 src="" source_given=0
   while (( $# )); do case "$1" in
     --json) json=1; shift ;;
-    --from) src="${2:-}"; shift 2 ;;
-    --from=*) src="${1#--from=}"; shift ;;
+    --from)
+      (( $# >= 2 )) || { echo "reconcile: --from needs a machine" >&2; return 2; }
+      src="$2"; source_given=1; shift 2 ;;
+    --from=*) src="${1#--from=}"; source_given=1; shift ;;
     *) echo "reconcile: unknown option '$1'" >&2; return 2 ;;
   esac; done
+  (( source_given == 0 )) || [[ -n "$src" ]] \
+    || { echo "reconcile: --from needs a machine" >&2; return 2; }
   if [[ -z "$src" ]]; then
     src=$(reconcile_default_source) || src=""
     [[ -n "$src" ]] || { echo "reconcile: no saved machine to reconcile from" >&2; return 1; }
   fi
+  reconcile_valid_machine "$src" \
+    || { echo "reconcile: bad machine name '$src'" >&2; return 1; }
   [[ -d "$STATE_ROOT/$src" ]] || { echo "reconcile: no saved machine '$src'" >&2; return 1; }
   if (( json )); then
     reconcile_missing_json "$src"
@@ -175,7 +187,7 @@ reconcile_preview() {
       "$(jq -r '.aur | join(" ")' <<<"$payload")"
   fi
   if (( off_n > 0 || aur_n > 0 )); then
-    printf 'Or install named ones explicitly:\n  replicant reconcile install <pkg...> [--aur] [--apply]\n'
+    printf 'Or install named ones explicitly:\n  replicant reconcile install <pkg...> [--aur] --from %q [--apply]\n' "$src"
   fi
 }
 
@@ -183,38 +195,41 @@ reconcile_preview() {
 # Preview-first: without --apply it names the exact command and stops.
 reconcile_install() {
   local kind="$1"; shift
-  local apply=0 dry=0 a
+  local apply=0 dry=0 src="" source_given=0
   local -a pkgs=()
-  for a in "$@"; do
-    case "$a" in
-      --apply) apply=1 ;;
-      --dry-run) dry=1 ;;
-      -*) echo "reconcile: unknown option '$a'" >&2; return 2 ;;
-      *) pkgs+=("$a") ;;
+  while (( $# )); do
+    case "$1" in
+      --apply) apply=1; shift ;;
+      --dry-run) dry=1; shift ;;
+      --from)
+        (( $# >= 2 )) || { echo "reconcile: --from needs a machine" >&2; return 2; }
+        src="$2"; source_given=1; shift 2 ;;
+      --from=*) src="${1#--from=}"; source_given=1; shift ;;
+      -*) echo "reconcile: unknown option '$1'" >&2; return 2 ;;
+      *) pkgs+=("$1"); shift ;;
     esac
   done
   (( dry )) && apply=0
-  local src missing one bad=0
-  src=$(reconcile_default_source) || src=""
-  if [[ -z "$src" ]]; then
-    # An explicit selection does not need a source machine: the names stand
-    # on their own. The missing-set check below still applies when there is
-    # a source to check against.
-    missing=""
-  else
-    missing=$(reconcile_missing "$src" "$kind" 2>/dev/null || true)
-  fi
+  local missing one bad=0
+  (( source_given == 0 )) || [[ -n "$src" ]] \
+    || { echo "reconcile: --from needs a machine" >&2; return 2; }
+  if [[ -z "$src" ]]; then src=$(reconcile_default_source) || src=""; fi
+  [[ -n "$src" ]] || { echo "reconcile: no saved machine to reconcile from" >&2; return 1; }
+  reconcile_valid_machine "$src" \
+    || { echo "reconcile: bad machine name '$src'" >&2; return 1; }
+  [[ -d "$STATE_ROOT/$src" ]] \
+    || { echo "reconcile: no saved machine '$src'" >&2; return 1; }
+  missing=$(reconcile_missing "$src" "$kind") || return 1
   (( ${#pkgs[@]} )) || { echo "reconcile: install needs at least one package" >&2; return 2; }
   for one in "${pkgs[@]}"; do
     [[ "$one" =~ ^[A-Za-z0-9@._+-]+$ ]] || { echo "reconcile: '$one' is not a package name" >&2; bad=1; }
   done
   (( bad == 0 )) || return 1
-  if [[ -n "$missing" ]]; then
-    for one in "${pkgs[@]}"; do
-      grep -qxF -- "$one" <<<"$missing" || { echo "reconcile: '$one' is not missing from $src (already installed, or never recorded)" >&2; bad=1; }
-    done
-    (( bad == 0 )) || return 1
-  fi
+  for one in "${pkgs[@]}"; do
+    grep -qxF -- "$one" <<<"$missing" \
+      || { echo "reconcile: '$one' is not missing from $src (already installed, or never recorded)" >&2; bad=1; }
+  done
+  (( bad == 0 )) || return 1
   local cmd
   if [[ "$kind" == aur ]]; then cmd="omarchy pkg aur add ${pkgs[*]}"
   else cmd="omarchy pkg add ${pkgs[*]}"; fi

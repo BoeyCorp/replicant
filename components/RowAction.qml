@@ -3,6 +3,7 @@ import QtQuick.Controls
 import Quickshell
 import Quickshell.Io
 import qs.Commons
+import qs.Commons as Commons
 import qs.Ui
 import "../replicant.js" as R
 
@@ -20,8 +21,8 @@ Button {
   fontSize: Style.font.bodySmall
   horizontalPadding: Style.space(8)
   verticalPadding: Style.space(3)
-  foreground: panel ? panel.fg : Color.foreground
-  accent: Color.accent
+  foreground: panel ? panel.fg : Commons.Color.foreground
+  accent: Commons.Color.accent
   fontFamily: panel ? panel.ff : Style.font.family
   ToolTip.visible: hovered && !enabled
   ToolTip.text: disabledReason

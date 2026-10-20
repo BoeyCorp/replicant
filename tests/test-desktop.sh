@@ -111,6 +111,8 @@ check_false "bad name refused" run workspace define 2 --name 'a b!' --apply
 check_false "bad layout refused" run workspace define 2 --layout floating --apply
 check_false "bad persistent refused" run workspace define 2 --persistent maybe --apply
 check_false "empty define refused" run workspace define 2 --apply
+check_false "define rejects an extra operand" run workspace define 2 extra --name web --apply
+check_false "count rejects define options" run workspace count 2 --name web --apply
 run workspace define 1 --name www --apply >/dev/null 2>&1
 check "rename keeps the layout" "dwindle" "$(run workspace list --json | jq -r '.workspaces[0].layout')"
 check "rename keeps keep-empty" "true" "$(run workspace list --json | jq -r '.workspaces[0].persistent')"
@@ -175,6 +177,7 @@ check "unassign removes it" "0" "$(grep -c 'GHOST-9' "$HOME/.config/hypr/monitor
 check_false "unassigning an absent workspace refused" run workspace unassign 9 --apply
 check_false "assign refuses a bad workspace" run workspace assign 0 DP-9 --apply
 check_false "assign refuses an empty monitor" run workspace assign 1 "" --apply
+check_false "unassign rejects an extra operand" run workspace unassign 1 extra --apply
 
 section "private identifiers never reach the output"
 out=$(run workspace list --json)
@@ -214,6 +217,9 @@ check_false "bad vrr refused" run display set DP-9 --vrr 9 --apply
 check_false "self mirror refused" run display set DP-9 --mirror DP-9 --apply
 check_false "absent mirror refused" run display set DP-9 --mirror NOPE-0 --apply
 check_false "set with no options refused" run display set DP-9 --apply
+check_false "set rejects conflicting HDR flags" run display set DP-9 --hdr --no-hdr --apply
+check_false "remove rejects set options" run display remove DP-9 --scale 2 --apply
+check_false "disable rejects an extra monitor" run display disable GHOST-9 DP-9 --apply
 check_false "unknown monitor refused" run display set NOPE-0 --mode preferred --apply
 run display set DP-9 --hdr --rotation 1 --position 3840x0 --vrr 1 --apply >/dev/null 2>&1
 check "hdr lands as bitdepth 10" "1" "$(grep -c 'bitdepth = 10' "$HOME/.config/hypr/monitors.lua")"

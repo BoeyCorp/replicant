@@ -3,6 +3,7 @@ import QtQuick.Controls
 import Quickshell
 import Quickshell.Io
 import qs.Commons
+import qs.Commons as Commons
 import qs.Ui
 
 // Everything that is backed up, by area. A filter and a search narrow it, and
@@ -44,7 +45,7 @@ Column {
     Button {
       text: panel.manageMode ? "Done" : "Manage"
       bordered: true
-      foreground: panel.fg; accent: Color.accent; fontFamily: panel.ff
+      foreground: panel.fg; accent: Commons.Color.accent; fontFamily: panel.ff
       tooltipText: "Select several entries  (m)"
       onClicked: panel.toggleManage()
     }
@@ -71,7 +72,7 @@ Column {
     Button {
       visible: panel.filtering
       text: "Clear filter"; bordered: true
-      foreground: panel.fg; accent: Color.accent; fontFamily: panel.ff
+      foreground: panel.fg; accent: Commons.Color.accent; fontFamily: panel.ff
       tooltipText: "Show every tracked entry"
       onClicked: { panel.setFileSearch(""); panel.setStateFilter("all") }
     }
@@ -79,7 +80,7 @@ Column {
       visible: !panel.filtering
       text: panel.suggestions.length > 0 ? "Review suggestions" : "Refresh"
       bordered: true
-      foreground: panel.fg; accent: Color.accent; fontFamily: panel.ff
+      foreground: panel.fg; accent: Commons.Color.accent; fontFamily: panel.ff
       tooltipText: panel.suggestions.length > 0 ? "Review files that are not tracked" : "Refresh the repository status"
       onClicked: panel.suggestions.length > 0 ? panel.toggleCard("__suggest") : panel.refresh()
     }

@@ -1,5 +1,6 @@
 import QtQuick
 import qs.Commons
+import qs.Commons as Commons
 import qs.Ui
 import "../replicant.js" as R
 
@@ -7,8 +8,8 @@ BorderSurface {
   id: footer
   property var panel
   implicitHeight: body.implicitHeight + Style.space(16)
-  color: Qt.rgba(Color.accent.r, Color.accent.g, Color.accent.b, 0.10)
-  borderSpec: Border.controlSpec("focus", panel.fg, Color.accent)
+  color: Qt.rgba(Commons.Color.accent.r, Commons.Color.accent.g, Commons.Color.accent.b, 0.10)
+  borderSpec: Border.controlSpec("focus", panel.fg, Commons.Color.accent)
   Column {
     id: body
     anchors.fill: parent
@@ -29,13 +30,13 @@ BorderSurface {
     }
     Row {
       spacing: Style.space(6)
-      Button { text: "Save"; visible: panel.bulkActions.indexOf("save") >= 0; bordered: true; foreground: panel.fg; accent: Color.accent; fontFamily: panel.ff; onClicked: panel.doBulk("save") }
+      Button { text: "Save"; visible: panel.bulkActions.indexOf("save") >= 0; bordered: true; foreground: panel.fg; accent: Commons.Color.accent; fontFamily: panel.ff; onClicked: panel.doBulk("save") }
       Button {
         text: "Save"; visible: panel.bulkActions.indexOf("save") < 0 && panel.selectionSummary.selected > 0
         bordered: true; foreground: panel.dim; fontFamily: panel.ff; enabled: false
         tooltipText: "Save needs every selected row to be savable. Off, pending, incoming, missing and locked rows cannot be saved."
       }
-      Button { text: "Track"; visible: panel.bulkActions.indexOf("track-config") >= 0; bordered: true; foreground: panel.fg; accent: Color.accent; fontFamily: panel.ff; onClicked: panel.doBulk("track-config") }
+      Button { text: "Track"; visible: panel.bulkActions.indexOf("track-config") >= 0; bordered: true; foreground: panel.fg; accent: Commons.Color.accent; fontFamily: panel.ff; onClicked: panel.doBulk("track-config") }
       Button { text: "Track secret"; visible: panel.bulkActions.indexOf("track-secret") >= 0; bordered: false; foreground: panel.dim; fontFamily: panel.ff; onClicked: panel.doBulk("track-secret") }
       Button { text: "Shared"; visible: panel.bulkActions.indexOf("scope-shared") >= 0; bordered: false; foreground: panel.dim; fontFamily: panel.ff; onClicked: panel.doBulk("scope-shared") }
       Button { text: "Profile"; visible: panel.bulkActions.indexOf("scope-profile") >= 0; bordered: false; foreground: panel.dim; fontFamily: panel.ff; onClicked: panel.doBulk("scope-profile") }

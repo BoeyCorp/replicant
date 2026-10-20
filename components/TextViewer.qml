@@ -3,6 +3,7 @@ import QtQuick.Controls
 import Quickshell
 import Quickshell.Io
 import qs.Commons
+import qs.Commons as Commons
 import qs.Ui
 import "../replicant.js" as R
 
@@ -15,7 +16,7 @@ Rectangle {
   // The panel this belongs to. Every value and every action comes from it.
   property var panel
   visible: panel.viewerOpen
-  color: Color.popups.background
+  color: Commons.Color.popups.background
   function resetScroll() {
     if (scroll) Qt.callLater(function() { scroll.contentY = 0 })
   }
@@ -114,8 +115,8 @@ Rectangle {
           // break. Wrap it inside the reader rather than clipping its cause.
           wrapMode: panel.viewerKind === "output" ? Text.WrapAnywhere : Text.NoWrap
           color: role === "add" || role === "ok" ? panel.okColor
-               : role === "del" || role === "bad" ? Color.urgent
-               : role === "hunk" || role === "accent" ? Color.accent
+               : role === "del" || role === "bad" ? Commons.Color.urgent
+               : role === "hunk" || role === "accent" ? Commons.Color.accent
                : role === "warn" ? panel.warnColor
                : role === "dim" ? panel.dim
                : panel.fg

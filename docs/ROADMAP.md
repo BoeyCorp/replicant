@@ -14,13 +14,12 @@
 
 ## Current
 
-- Version 0.15.0 makes recovery reinsert entries, makes the CLI fail
-  closed for undo and track options, and makes the panel honest about pending
-  scope, locked rows, keyboard reach and result history.
+- Version 0.41.1 reviews the portable controls release. It preserves the
+  selected package source, opens installs visibly, keeps file modes, improves
+  rollback, and makes new command parsers fail closed. Decimal settings use
+  a text field with a unit label. Qualified color references restore the theme.
 - Complete live installation and placement verification for the usability patch.
 - Record the remaining shell restart and interaction evidence in `TASKS.md`.
-- Complete deferred panel loading. Security cleanup and documentation alignment
-  are complete.
 
 ## Next
 
@@ -36,7 +35,12 @@
 - I5 adds portable structured editors; I6 adds profile-aware workspace and display editors.
 - I7 reconciles portable software inventories; I8 audits, releases 0.41.0, publishes, and installs.
 - The repository format stays unchanged; new mutating CLI commands preview by default and require `--apply`.
-- Status: I0 through I7 complete, I8 in progress. Deferred Settings loading ships on the branch; initial load median 7.84s to 2.28s (71 percent faster, budget 2.5s). Settings tab navigates five domains with manual apply actions. Window and effect catalog at 76 settings; border-inside and animation speed excluded with compositor evidence. Scalar catalog at 100 settings: dwindle, master, group bar, focus policy, XKB variant and options, monospace font, and bar anchor; scrolling fullscreen-one-column and group colors excluded with compositor evidence. Structured editors (`shortcut`, `compose`, `bar-layout`) write managed blocks with preview-first mutations and save through the owning entry. Workspace and display editors (`workspace`, `display`) keep shared app rules apart from per-profile monitor mappings; desc: serials never print. Software reconciliation (`reconcile`) installs only selected missing packages from the newest-saved machine, inside Restore.
+- Status: I0 through I8 complete. Deferred Settings loading reduces the initial
+  median from 7.84 seconds to 2.28 seconds. The Settings tab covers five
+  domains and 100 settings. Structured editors use managed blocks and
+  preview-first changes. Workspace and display editors separate shared app
+  rules from monitor mappings for each profile. Software reconciliation
+  installs selected missing packages from one saved machine inside Restore.
 
 ## Settings hardening (0.40.0)
 
@@ -45,7 +49,7 @@
 - Defaults only come from Omarchy files or registry fallbacks. Current
   compositor values do not create reset actions.
 - Refreshes parse each Lua settings file once. Float controls accept exact
-  decimal input beside their sliders.
+  decimal input.
 
 ## Settings expansion (0.39.0)
 

@@ -538,6 +538,7 @@ structured_bar_build() {
       ;;
     disable)
       id="${1:-}"; [[ -n "$id" ]] || { echo "bar-layout: disable needs a widget" >&2; return 1; }
+      (( $# == 1 )) || { echo "bar-layout: disable takes one widget" >&2; return 1; }
       local cur old_sect old_idx
       cur=$(structured_bar_resolve "$tmp" "$id") || return 1
       old_sect=$(cut -d $'\x1f' -f1 <<<"$cur"); old_idx=$(cut -d $'\x1f' -f2 <<<"$cur")
@@ -624,7 +625,9 @@ structured_adopt_lua() {
   backup_before_write "$file" || { echo "could not back up $file" >&2; return 1; }
   backup_path=$(ls -1t -- "$file".bak.* 2>/dev/null | head -n1 || true)
   [[ -n "$backup_path" ]] || { echo "backup for $file is missing" >&2; return 1; }
-  cp -a -- "$cand" "$file" || { echo "could not write $file" >&2; return 1; }
+  # A candidate comes from mktemp with mode 600. A plain copy keeps the mode
+  # of an existing destination; cp -a would replace it with the temp mode.
+  cp -- "$cand" "$file" || { echo "could not write $file" >&2; return 1; }
   invalidate_file_maps
   if ! timeout 2 bash -c "$apply" >/dev/null 2>&1; then
     cp -a -- "$backup_path" "$file" || { echo "'$apply' failed and the restore from $backup_path failed" >&2; return 1; }
@@ -660,19 +663,26 @@ structured_adopt_lua() {
 # the apply hook, and roll back when it fails. No config-error check: plain
 # files have no validator to ask.
 structured_adopt_plain() {
-  local file="$1" cand="$2" apply="${3:-}" backup_path
+  local file="$1" cand="$2" apply="${3:-}" backup_path existed=0
+  [[ -e "$file" ]] && existed=1
   backup_before_write "$file" || { echo "could not back up $file" >&2; return 1; }
-  backup_path=$(ls -1t -- "$file".bak.* 2>/dev/null | head -n1 || true)
+  if (( existed )); then
+    backup_path=$(ls -1t -- "$file".bak.* 2>/dev/null | head -n1 || true)
+  else
+    backup_path=""
+  fi
   mkdir -p "$(dirname -- "$file")" || { echo "could not write $file" >&2; return 1; }
-  cp -a -- "$cand" "$file" || { echo "could not write $file" >&2; return 1; }
+  cp -- "$cand" "$file" || { echo "could not write $file" >&2; return 1; }
   invalidate_file_maps
   if [[ -n "$apply" ]]; then
     if ! timeout 10 bash -c "$apply" >/dev/null 2>&1; then
       if [[ -n "$backup_path" ]]; then
         cp -a -- "$backup_path" "$file" || { echo "'$apply' failed and the restore failed" >&2; return 1; }
         invalidate_file_maps
+      elif (( existed == 0 )); then
+        rm -f -- "$file" || { echo "'$apply' failed and the new file could not be removed" >&2; return 1; }
       fi
-      echo "'$apply' failed — restored $file, nothing was applied" >&2
+      echo "'$apply' failed — rolled back $file, nothing was applied" >&2
       return 1
     fi
   fi

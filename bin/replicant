@@ -944,7 +944,9 @@ structured_run() {
   elif [[ "$adopt" == "json" ]]; then
     backup_before_write "$file" || { trap - RETURN; rm -f "$inner" "$cand"; fail "could not back up $file"; }
     mkdir -p "$(dirname -- "$file")" || { trap - RETURN; rm -f "$inner" "$cand"; fail "could not write $file"; }
-    cp -a -- "$cand" "$file" || { trap - RETURN; rm -f "$inner" "$cand"; fail "could not write $file"; }
+    # Keep an existing config file's mode. The candidate is a mode-600
+    # mktemp file, so cp -a would silently replace the user's permissions.
+    cp -- "$cand" "$file" || { trap - RETURN; rm -f "$inner" "$cand"; fail "could not write $file"; }
     invalidate_file_maps
   fi
   ok "Applied: $subject."
@@ -968,20 +970,22 @@ cmd_shortcut() {
 # adopt a shortcut change, then save hypr/bindings.lua.
 structured_shortcut_mutate() {
   local op="$1"; shift
-  local -a raw=() args=()
+  local -a raw=() pos=() flags=()
   local a desc="" keys="" cmd=""
   for a in "$@"; do raw+=("$a"); done
   while (( ${#raw[@]} )); do case "${raw[0]}" in
-    --desc) desc="${raw[1]:-}"; raw=("${raw[@]:2}") ;;
-    --apply|--dry-run) args+=("${raw[0]}"); raw=("${raw[@]:1}") ;;
-    *) args+=("${raw[0]}"); raw=("${raw[@]:1}") ;;
+    --desc)
+      (( ${#raw[@]} >= 2 )) || fail "usage: replicant shortcut add <keys> <command> [--desc text] [--apply]"
+      desc="${raw[1]}"; raw=("${raw[@]:2}") ;;
+    --apply|--dry-run) flags+=("${raw[0]}"); raw=("${raw[@]:1}") ;;
+    *) pos+=("${raw[0]}"); raw=("${raw[@]:1}") ;;
   esac; done
   local file owner subject
   file=$(structured_bindings_file); owner="hypr/bindings.lua"
   case "$op" in
     add)
-      (( ${#args[@]} >= 2 )) || fail "usage: replicant shortcut add <keys> <command> [--desc text] [--apply]"
-      keys="${args[0]}"; cmd="${args[1]}"
+      (( ${#pos[@]} == 2 )) || fail "usage: replicant shortcut add <keys> <command> [--desc text] [--apply]"
+      keys="${pos[0]}"; cmd="${pos[1]}"
       subject="shortcuts: add $keys"
       structured_shortcut_add_build() {
         local inner cand
@@ -995,8 +999,9 @@ structured_shortcut_mutate() {
       }
       ;;
     disable)
-      (( ${#args[@]} >= 1 )) || fail "usage: replicant shortcut disable <keys> [--apply]"
-      keys="${args[0]}"
+      (( ${#pos[@]} == 1 )) && [[ -z "$desc" ]] \
+        || fail "usage: replicant shortcut disable <keys> [--apply]"
+      keys="${pos[0]}"
       subject="shortcuts: disable $keys"
       structured_shortcut_add_build() {
         local inner cand
@@ -1010,8 +1015,9 @@ structured_shortcut_mutate() {
       }
       ;;
     restore)
-      (( ${#args[@]} >= 1 )) || fail "usage: replicant shortcut restore <keys> [--apply]"
-      keys="${args[0]}"
+      (( ${#pos[@]} == 1 )) && [[ -z "$desc" ]] \
+        || fail "usage: replicant shortcut restore <keys> [--apply]"
+      keys="${pos[0]}"
       subject="shortcuts: restore $keys"
       structured_shortcut_add_build() {
         local inner cand
@@ -1025,8 +1031,9 @@ structured_shortcut_mutate() {
       }
       ;;
     remove)
-      (( ${#args[@]} >= 1 )) || fail "usage: replicant shortcut remove <keys> [--apply]"
-      keys="${args[0]}"
+      (( ${#pos[@]} == 1 )) && [[ -z "$desc" ]] \
+        || fail "usage: replicant shortcut remove <keys> [--apply]"
+      keys="${pos[0]}"
       subject="shortcuts: remove $keys"
       structured_shortcut_add_build() {
         local inner cand
@@ -1040,11 +1047,7 @@ structured_shortcut_mutate() {
       }
       ;;
   esac
-  STRUCTURED_ARGS=()
-  # The apply decision from the flags the user passed.
-  for a in "$@"; do
-    [[ "$a" == "--apply" || "$a" == "--dry-run" ]] && STRUCTURED_ARGS+=("$a")
-  done
+  STRUCTURED_ARGS=("${flags[@]}")
   structured_run shortcut structured_shortcut_add_build "$file" "$owner" "$subject" lua "hyprctl reload"
 }
 
@@ -1077,12 +1080,12 @@ structured_compose_mutate() {
   file=$(structured_compose_file); owner="home/XCompose"
   case "$op" in
     add)
-      (( ${#pos[@]} >= 2 )) || fail "usage: replicant compose add '<sequence>' '<result>' [--apply]"
+      (( ${#pos[@]} == 2 )) || fail "usage: replicant compose add '<sequence>' '<result>' [--apply]"
       seq="${pos[0]}"; result="${pos[1]}"
       subject="compose: add $seq"
       ;;
     remove)
-      (( ${#pos[@]} >= 1 )) || fail "usage: replicant compose remove '<sequence>' [--apply]"
+      (( ${#pos[@]} == 1 )) || fail "usage: replicant compose remove '<sequence>' [--apply]"
       seq="${pos[0]}"
       subject="compose: remove $seq"
       ;;
@@ -1197,7 +1200,8 @@ desktop_workspace_mutate() {
   local file owner subject
   case "$op" in
     define)
-      (( ${#opts[@]} >= 1 )) || fail "usage: replicant workspace define <n> [--name X] [--layout L] [--persistent on|off] [--apply]"
+      (( ${#opts[@]} == 1 )) && [[ "$def" == false ]] \
+        || fail "usage: replicant workspace define <n> [--name X] [--layout L] [--persistent on|off] [--apply]"
       file=$(desktop_hyprland_file); owner="hypr/hyprland.lua"; subject="workspaces: define ${opts[0]}"
       desktop_ws_add_build() {
         local inner cand
@@ -1212,7 +1216,8 @@ desktop_workspace_mutate() {
       }
       ;;
     undefine)
-      (( ${#opts[@]} >= 1 )) || fail "usage: replicant workspace undefine <n> [--apply]"
+      (( ${#opts[@]} == 1 )) && [[ -z "$name$layout$persistent" && "$def" == false ]] \
+        || fail "usage: replicant workspace undefine <n> [--apply]"
       file=$(desktop_hyprland_file); owner="hypr/hyprland.lua"; subject="workspaces: undefine ${opts[0]}"
       # Orphaned app rules keep pointing at the workspace; say so before.
       local apps orphan=""
@@ -1235,7 +1240,8 @@ desktop_workspace_mutate() {
       }
       ;;
     count)
-      (( ${#opts[@]} >= 1 )) || fail "usage: replicant workspace count <n> [--apply]"
+      (( ${#opts[@]} == 1 )) && [[ -z "$name$layout$persistent" && "$def" == false ]] \
+        || fail "usage: replicant workspace count <n> [--apply]"
       file=$(desktop_hyprland_file); owner="hypr/hyprland.lua"; subject="workspaces: keep ${opts[0]}"
       desktop_ws_add_build() {
         local inner cand
@@ -1251,9 +1257,11 @@ desktop_workspace_mutate() {
       ;;
     app-add|app-remove)
       if [[ "$op" == app-add ]]; then
-        (( ${#opts[@]} >= 2 )) || fail "usage: replicant workspace app-add <class> <n> [--apply]"
+        (( ${#opts[@]} == 2 )) && [[ -z "$name$layout$persistent" && "$def" == false ]] \
+          || fail "usage: replicant workspace app-add <class> <n> [--apply]"
       else
-        (( ${#opts[@]} >= 1 )) || fail "usage: replicant workspace app-remove <class> [--apply]"
+        (( ${#opts[@]} == 1 )) && [[ -z "$name$layout$persistent" && "$def" == false ]] \
+          || fail "usage: replicant workspace app-remove <class> [--apply]"
       fi
       file=$(desktop_hyprland_file); owner="hypr/hyprland.lua"; subject="workspaces: $op ${opts[0]}"
       # Opening on an undefined workspace works, but say so before.
@@ -1279,9 +1287,11 @@ desktop_workspace_mutate() {
       ;;
     assign|unassign)
       if [[ "$op" == assign ]]; then
-        (( ${#opts[@]} >= 2 )) || fail "usage: replicant workspace assign <n> <monitor> [--default] [--apply]"
+        (( ${#opts[@]} == 2 )) && [[ -z "$name$layout$persistent" ]] \
+          || fail "usage: replicant workspace assign <n> <monitor> [--default] [--apply]"
       else
-        (( ${#opts[@]} >= 1 )) || fail "usage: replicant workspace unassign <n> [--apply]"
+        (( ${#opts[@]} == 1 )) && [[ -z "$name$layout$persistent" && "$def" == false ]] \
+          || fail "usage: replicant workspace unassign <n> [--apply]"
       fi
       file=$(desktop_monitors_file); owner="hypr/monitors.lua"; subject="workspaces: $op ${opts[0]}"
       if [[ "$op" == assign ]] && command -v hyprctl >/dev/null 2>&1; then
@@ -1367,7 +1377,12 @@ desktop_display_mutate() {
     --no-hdr) nohdr=1; pos=("${pos[@]:1}") ;;
     *) opts+=("${pos[0]}"); pos=("${pos[@]:1}") ;;
   esac; done
-  (( ${#opts[@]} >= 1 )) || fail "usage: replicant display $op <monitor> [options] [--apply]"
+  (( ${#opts[@]} == 1 )) || fail "usage: replicant display $op <monitor> [options] [--apply]"
+  if [[ "$op" == set ]]; then
+    [[ -z "$hdr" || -z "$nohdr" ]] || fail "display set: --hdr and --no-hdr exclude each other"
+  elif [[ -n "$mode$scale$transform$position$mirror$vrr$hdr$nohdr" ]]; then
+    fail "usage: replicant display $op <monitor> [--apply]"
+  fi
   local file owner subject
   file=$(desktop_monitors_file); owner="hypr/monitors.lua"
   subject="display: $op ${opts[0]}"
@@ -1457,7 +1472,7 @@ desktop_display_mutate() {
 
 # cmd_reconcile — portable software reconciliation. Preview names the source
 # machine, the missing official and AUR packages separately, and the exact
-# official install command for the selection. Installs only named packages,
+# official install command for the selection. Installs only missing packages,
 # never removes, and writes nothing to the repo, so no lock is taken.
 cmd_reconcile() {
   load_core
@@ -1467,7 +1482,7 @@ cmd_reconcile() {
     --from|--from=*|--json) ;;
     "") ;;
     -h|--help) ;;
-    *) fail "usage: replicant reconcile [--from <machine>] [--json] | reconcile install <pkg...> [--aur] [--apply] (try --help)" ;;
+    *) fail "usage: replicant reconcile [--from <machine>] [--json] | reconcile install <pkg...> [--aur] [--from <machine>] [--apply] (try --help)" ;;
   esac
   if [[ "$sub" == install ]]; then
     local kind=official
@@ -2083,7 +2098,8 @@ Desktop editors               (preview first; --apply writes and saves)
 
 Software you chose               (preview first; --apply installs, never removes)
   reconcile [--from <machine>] [--json]   What another machine has that this one lacks
-  reconcile install <pkg...> [--aur] [--apply]   Install named missing packages
+  reconcile install <pkg...> [--aur] [--from <machine>] [--apply]
+                                      Install missing packages from one saved machine
 
 Secret key                   (one shared age identity behind encrypted secrets)
   key init                    Create it on this machine, and record the recipient
@@ -2337,12 +2353,12 @@ Dry-run by default, like everything here that writes.
   default makes workspace 1 prefer that monitor in this profile.
   No desc: serial ever prints."
   [reconcile]="reconcile [--from <machine>] [--json]
-  reconcile install <pkg...> [--aur] [--apply]
+  reconcile install <pkg...> [--aur] [--from <machine>] [--apply]
   Portable software reconciliation, presented as part of restore. The preview
   names the source machine (the newest save, or --from), lists missing
   official and AUR packages separately, and prints the exact official install
-  command. install takes only named packages, refuses anything not missing,
-  and never removes. Base and ignored packages are never proposed.
+  command. install keeps the chosen source, refuses anything not missing from
+  it, and never removes. Base and ignored packages are never proposed.
   Plugins and themes list with their origins; review one with
   install-plugin <id> --check before install-plugin --revision <sha> --yes."
   [link]="link
