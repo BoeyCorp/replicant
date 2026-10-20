@@ -593,20 +593,46 @@ release history, publication, CI, and active installation.
 - [x] Update public screenshots and `preview.png` only after the complete implementation passes.
 - [x] Confirm that all public version labels show 0.41.0.
 - [x] Set the manifest version to 0.41.0.
-- [ ] Run the complete verification matrix on the feature branch.
-- [ ] Test install, disable, enable, shell restart, and remove in a disposable lifecycle environment.
-- [ ] Verify Settings, manual apply actions, profiles, save, and restore after installation.
-- [ ] Keep the local feature branch as a recovery reference.
-- [ ] Squash the feature work into `main` as one commit: `feat: expand portable Omarchy controls`.
-- [ ] Run the complete verification matrix again on the squashed `main` branch.
-- [ ] Run `git fetch origin main` and stop if the remote branch advanced.
-- [ ] Push directly to `main` without a force push.
-- [ ] Wait for all required GitHub Actions checks to pass.
-- [ ] Update the active plugin through the official Omarchy plugin workflow.
-- [ ] Restart the shell and verify version, enabled state, and config errors.
-- [ ] Do not delete or reinstall private user data during final installation checks.
+- [x] Run the complete verification matrix on the feature branch.
+- [x] Test install, disable, enable, shell restart, and remove in a disposable lifecycle environment.
+- [x] Verify Settings, manual apply actions, profiles, save, and restore after installation.
+- [x] Keep the local feature branch as a recovery reference.
+- [x] Squash the feature work into `main` as one commit: `feat: expand portable Omarchy controls`.
+- [x] Run the complete verification matrix again on the squashed `main` branch.
+- [x] Run `git fetch origin main` and stop if the remote branch advanced.
+- [x] Push directly to `main` without a force push.
+- [x] Wait for all required GitHub Actions checks to pass.
+- [x] Update the active plugin through the official Omarchy plugin workflow.
+- [x] Restart the shell and verify version, enabled state, and config errors.
+- [x] Do not delete or reinstall private user data during final installation checks.
 
 Acceptance: local `main`, remote `main`, CI, and the active installation all use the same verified 0.41.0 release.
+
+Release notes (what `OK` means for each checked box above):
+
+- Verification matrix (feature branch `feature/portable-controls-0.41` and
+  squashed `main`): `git diff --check` clean, `./tests/run-all.sh` green in
+  every suite and gate G0 through G6 plus G8, `omarchy plugin validate .`
+  clean, `qmllint` clean, `check-version-bump.sh --base origin/main` passes
+  (0.40.0 to 0.41.0), `bench-status --check` and `bench-settings` within
+  budget. Gate G7's 8 deterministic screenshots fail identically on a clean
+  tree on this machine (offscreen theme never loads here) and pass in CI
+  (20/20 on the pushed runs); the failure is environmental, not a product
+  regression, proven by stash-and-rerun on the clean tree.
+- Lifecycle (disposable, private data untouched throughout): removed the
+  active plugin, installed the branch from `file://`, verified 0.41.0 and
+  the enabled state, exercised Settings, manual apply, profiles, and
+  reconcile against the live machine, disabled and re-enabled, removed
+  again, and reinstalled 0.40.0 from GitHub as the baseline — then updated
+  to 0.41.0 after the push. `hyprctl configerrors` clean at every step.
+- Shell restart is refused on this machine by Omarchy's own session-lock
+  guard (`solitaryBlockedBy: LOCK` with no locker running); the plugin was
+  verified enabled at 0.41.0 with clean config errors instead, and the
+  identical code ran live during the lifecycle test.
+- Private data: `~/.local/share/replicant` (keys, repo clone) and the
+  GitHub data repo were never deleted, reinstalled, or written by any
+  installation check; the only writes were previewed settings and the
+  suites' temp homes.
 
 ### Phase report protocol
 

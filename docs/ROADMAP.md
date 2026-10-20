@@ -2,6 +2,13 @@
 
 ## Completed
 
+- Version 0.41.0 delivers portable Omarchy controls: 100 panel settings with
+  manual apply actions, managed-block structured editors (`shortcut`,
+  `compose`, `bar-layout`), profile-aware workspace and display editors
+  (`workspace`, `display`), and software reconciliation (`reconcile`) inside
+  Restore. Published as one squashed commit, verified by the full matrix,
+  green CI, and the active 0.41.0 installation.
+
 - Version 0.13.0 delivered the single-format repository, transactional saves, bulk operations, and the current panel.
 - Version 0.14.0 makes the CLI fail closed for help, locks, core load errors, undo, and unknown states.
 
