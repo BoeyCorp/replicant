@@ -6,7 +6,8 @@
   that human review or the blocked shell restart passed. F03 confirms that the
   current Restore previews show their source, destination, differences,
   exclusions, and secret redaction. F04 separates active tasks from the
-  preserved release history.
+  preserved release history. F05 proposes direct navigation between visible
+  Restore cards.
 
 - Version 0.41.0 delivers portable Omarchy controls: 100 panel settings with
   manual apply actions, managed-block structured editors (`shortcut`,
@@ -35,7 +36,6 @@
 ## Next
 
 - F02: BLOCKED. Verify Settings when a disposable Omarchy session is available.
-- F05: select one measured panel organization improvement after F03 and F04.
 
 ## Portable controls expansion (0.41.0)
 

@@ -95,19 +95,21 @@ mixed release history with active work. This plan addresses those verified gaps 
 
 - Objective: choose one measurable panel improvement after the current Restore work is reviewed.
 - Tasks:
-  - [ ] Review how users find pending work across Restore, Settings, Configs, and Machines.
-  - [ ] Use existing test journeys and panel structure to identify one repeated navigation or status problem.
-  - [ ] Write a bounded proposal with a before-and-after journey and acceptance checks.
+  - [x] Review how users find pending work across Restore, Settings, Configs, and Machines.
+  - [x] Use existing test journeys and panel structure to identify one repeated navigation or status problem.
+  - [x] Write a bounded proposal with a before-and-after journey and acceptance checks.
 - Dependencies: F03 and F04.
 - Acceptance: the proposal names one observed problem, one affected panel path, one outcome metric, and focused checks. Do not add a feature from speculation alone.
 - Required checks: inspect the affected panel journey and existing QML tests; no product changes in this phase.
 - Risks: broad redesign can increase panel complexity. Keep the proposal to one user journey.
-- State: Planned.
-- Commit: not authorized in plan mode.
+- State: Completed.
+- Evidence: Restore uses a vertical stack of six action cards, and `RestoreTab.navigationItem()` returns no anchor. Other tabs expose card or row anchors. Existing usability checks cover tab access but no jump between Restore cards.
+- Proposal: add a compact, keyboard-accessible section picker for the visible Restore cards. Before, a person who opens Restore to undo a backup must scroll or tab past earlier cards. After, the person picks “Undo a restore” and reaches that card directly. Target: reach any visible Restore section with one navigation action, then activate its control with one action. Test each visible card, hidden-card changes, keyboard focus, and return from a preview.
+- Commit: this commit (`docs: propose Restore section navigation`).
 
 ## Next action
 
-F02 remains blocked on a disposable graphical session. Continue with F05, which depends on F03 and F04.
+F01, F03, F04, and F05 are complete. F02 remains blocked until a disposable graphical Omarchy session is available.
 
 ## Previous records
 
