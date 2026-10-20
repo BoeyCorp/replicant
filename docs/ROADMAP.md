@@ -2,6 +2,12 @@
 
 ## Completed
 
+- F01 reconciles the open interaction and lifecycle evidence without claiming
+  that human review or the blocked shell restart passed. F03 confirms that the
+  current Restore previews show their source, destination, differences,
+  exclusions, and secret redaction. F04 separates active tasks from the
+  preserved release history.
+
 - Version 0.41.0 delivers portable Omarchy controls: 100 panel settings with
   manual apply actions, managed-block structured editors (`shortcut`,
   `compose`, `bar-layout`), profile-aware workspace and display editors
@@ -28,10 +34,7 @@
 
 ## Next
 
-- F01: reconcile current verification records in `docs/TASKS.md`.
 - F02: BLOCKED. Verify Settings when a disposable Omarchy session is available.
-- F03: Restore preview audit passed. Existing previews meet the evidence and secret-redaction criteria.
-- F04: separate active work from project history in the task records.
 - F05: select one measured panel organization improvement after F03 and F04.
 
 ## Portable controls expansion (0.41.0)
