@@ -947,9 +947,15 @@ setting_options() {
 }
 
 get_setting_value() {
-  local entry; entry=$(find_setting "$1") || return 1
+  # The builder passes its split entry to skip repeated registry searches.
+  local entry="${2:-}"
+  [[ -n "$entry" ]] || entry=$(find_setting "$1") || return 1
   local file path type raw
-  file=$(setting_field "$entry" 3); path=$(setting_field "$entry" 4); type=$(setting_field "$entry" 5)
+  if [[ -n "${2:-}" ]]; then
+    file="$3"; path="$4"; type="$5"
+  else
+    file=$(setting_field "$entry" 3); path=$(setting_field "$entry" 4); type=$(setting_field "$entry" 5)
+  fi
   case "$type" in
     theme)
       omarchy-theme-current 2>/dev/null || return 1
@@ -1235,6 +1241,8 @@ human_value() {
 declare -gA FILE_MAP_CACHE=()
 declare -gA FILE_MAP_LOADED=()
 declare -gA SETTING_OPTIONS_CACHE=()
+declare -gA SETTING_DEFAULT_FILE=()
+declare -gA SETTING_REPO_FILE=()
 invalidate_file_maps() { FILE_MAP_CACHE=(); FILE_MAP_LOADED=(); SETTING_OPTIONS_CACHE=(); }
 
 # Command substitution forks, and a fork copies the caches rather than sharing
@@ -1301,13 +1309,32 @@ map_kind_for_type() {
   esac
 }
 warm_setting_file_maps() {
+  # File paths repeat across rows. Resolve each source once per payload.
   local entry file type kind def rel copy om
+  local -a fields
+  local -A seen_file=() seen_map=()
+  SETTING_DEFAULT_FILE=()
+  SETTING_REPO_FILE=()
   for entry in "${SETTINGS[@]}"; do
-    file=$(setting_field "$entry" 3); type=$(setting_field "$entry" 5)
+    IFS='|' read -ra fields <<<"$entry"
+    file="${fields[2]}"; type="${fields[4]}"
     [[ "$file" != "-" ]] || continue
+    if [[ -z "${seen_file[$file]:-}" ]]; then
+      seen_file[$file]=1
+      def=$(default_for_src "$file" 2>/dev/null || true)
+      SETTING_DEFAULT_FILE[$file]="$def"
+      rel=$(rel_for_src "$file" 2>/dev/null || true)
+      copy=""
+      [[ -n "$rel" ]] && copy=$(repo_copy_for_rel "$rel")
+      SETTING_REPO_FILE[$file]="$copy"
+    else
+      def="${SETTING_DEFAULT_FILE[$file]}"
+      copy="${SETTING_REPO_FILE[$file]}"
+    fi
     kind=$(map_kind_for_type "$type"); [[ -n "$kind" ]] || continue
+    [[ -z "${seen_map[$file|$kind]:-}" ]] || continue
+    seen_map[$file|$kind]=1
     load_file_map "$file" "$kind"
-    def=$(default_for_src "$file" 2>/dev/null || true)
     [[ -n "$def" ]] && load_file_map "$def" "$kind"
     # Omarchy's config copy can contain only comments while default/hypr has
     # the active literal values. setting_default_value checks that sibling, so
@@ -1317,8 +1344,7 @@ warm_setting_file_maps() {
       rel="${file#$HOME/.config/}"
       [[ -f "$om/default/$rel" ]] && load_file_map "$om/default/$rel" "$kind"
     fi
-    rel=$(rel_for_src "$file" 2>/dev/null || true)
-    [[ -n "$rel" ]] && { copy=$(repo_copy_for_rel "$rel"); load_file_map "$copy" "$kind"; }
+    [[ -n "$copy" ]] && load_file_map "$copy" "$kind"
   done
 }
 
@@ -1347,8 +1373,9 @@ fontconfig_family() {
   printf '%s\n' "$fam"
 }
 read_setting_from() {
-  local entry="$1" file="$2" path type raw
-  path=$(setting_field "$entry" 4); type=$(setting_field "$entry" 5)
+  local entry="$1" file="$2" path="${3:-}" type="${4:-}" raw
+  [[ -n "$path" ]] || path=$(setting_field "$entry" 4)
+  [[ -n "$type" ]] || type=$(setting_field "$entry" 5)
   [[ -f "$file" ]] || return 1
   case "$type" in
     line-enum)
@@ -1375,14 +1402,22 @@ read_setting_from() {
 # Hyprland value can describe the current session, but cannot describe what
 # Omarchy ships, so it is never a default fallback.
 setting_default_value() {
-  local entry; entry=$(find_setting "$1") || return 1
-  local file def type path
-  file=$(setting_field "$entry" 3)
-  type=$(setting_field "$entry" 5)
-  path=$(setting_field "$entry" 4)
+  # A supplied entry uses the source paths prepared by warm_setting_file_maps.
+  local entry="${2:-}" file def type path fallback
+  [[ -n "$entry" ]] || entry=$(find_setting "$1") || return 1
+  if [[ -n "${2:-}" ]]; then
+    file="$3"; path="$4"; type="$5"; fallback="$6"
+  else
+    file=$(setting_field "$entry" 3)
+    type=$(setting_field "$entry" 5)
+    path=$(setting_field "$entry" 4)
+    fallback=$(setting_field "$entry" 13)
+  fi
   if [[ "$file" != "-" ]]; then
-    if def=$(default_for_src "$file" 2>/dev/null) && [[ -n "$def" ]]; then
-      if cand=$(read_setting_from "$entry" "$def" 2>/dev/null); then
+    if [[ -n "${2:-}" ]]; then def="${SETTING_DEFAULT_FILE[$file]:-}"
+    else def=$(default_for_src "$file" 2>/dev/null || true); fi
+    if [[ -n "$def" ]]; then
+      if cand=$(read_setting_from "$entry" "$def" "$path" "$type" 2>/dev/null); then
         if [[ "$type" == lua-enum ]]; then
           opts=$(setting_options "$entry" 2>/dev/null || true)
           if [[ -n "$opts" && "$opts" != "@x11-layouts" ]]; then
@@ -1398,7 +1433,7 @@ setting_default_value() {
         # shellcheck disable=SC2295  # $HOME has no glob characters here
         local rel="${file#$HOME/.config/}"
         if [[ "$rel" != "$file" && -f "$om/default/$rel" ]]; then
-          if cand=$(read_setting_from "$entry" "$om/default/$rel" 2>/dev/null); then
+          if cand=$(read_setting_from "$entry" "$om/default/$rel" "$path" "$type" 2>/dev/null); then
             if [[ "$type" == lua-enum ]]; then
               opts=$(setting_options "$entry" 2>/dev/null || true)
               if [[ -n "$opts" && "$opts" != "@x11-layouts" ]]; then
@@ -1419,8 +1454,7 @@ setting_default_value() {
       fi
     fi
   fi
-  def=$(setting_field "$entry" 13)
-  [[ -n "$def" ]] && { printf '%s\n' "$def"; return 0; }
+  [[ -n "$fallback" ]] && { printf '%s\n' "$fallback"; return 0; }
   # The active compositor value is useful for the current-value display. It is
   # never an Omarchy default: an override must not remove or invent a reset.
   return 1
@@ -1428,19 +1462,29 @@ setting_default_value() {
 
 # The value saved in the user's own repo — "what my other machine has".
 setting_repo_value() {
-  local entry; entry=$(find_setting "$1") || return 1
-  local file type rel copy
-  file=$(setting_field "$entry" 3)
-  type=$(setting_field "$entry" 5)
+  local entry="${2:-}" file type path rel copy
+  [[ -n "$entry" ]] || entry=$(find_setting "$1") || return 1
+  if [[ -n "${2:-}" ]]; then
+    file="$3"; path="$4"; type="$5"
+  else
+    file=$(setting_field "$entry" 3)
+    path=$(setting_field "$entry" 4)
+    type=$(setting_field "$entry" 5)
+  fi
   [[ "$type" == theme ]] && file="$HOME/.local/state/omarchy/current/theme.name"
   [[ "$file" != "-" ]] || return 1
-  rel=$(rel_for_src "$file") || return 1
-  copy=$(repo_copy_for_rel "$rel")
+  if [[ -n "${2:-}" && "$type" != theme ]]; then
+    copy="${SETTING_REPO_FILE[$file]:-}"
+    [[ -n "$copy" ]] || return 1
+  else
+    rel=$(rel_for_src "$file") || return 1
+    copy=$(repo_copy_for_rel "$rel")
+  fi
   if [[ "$type" == theme ]]; then
     head -n1 "$copy" 2>/dev/null | tr -d '\r'
     return "${PIPESTATUS[0]}"
   fi
-  read_setting_from "$entry" "$copy"
+  read_setting_from "$entry" "$copy" "$path" "$type"
 }
 
 # setting_save_id <id>: the one tracked entry that owns this setting's file.
@@ -1556,9 +1600,15 @@ build_settings_json() {
     scale="${F[13]:-}";  disp="${F[14]:-}"; step="${F[15]:-}"
     [[ -n "$scale" ]] || scale=1
     [[ -n "$disp" ]] || disp="$unit"
-    options=$(setting_options "$entry")
+    case "$type" in
+      theme|font) options=$(setting_options "$entry") ;;
+      *)
+        options="${F[9]:-}"
+        [[ "$options" == "@x11-layouts" ]] && options=$(setting_options "$entry")
+        ;;
+    esac
     value=""; value_found=false
-    if value=$(get_setting_value "$id" 2>/dev/null); then value_found=true; else value=""; fi
+    if value=$(get_setting_value "$id" "$entry" "$file" "$path" "$type" 2>/dev/null); then value_found=true; else value=""; fi
     implicit=false
     # The Hyprland value in force when the option is not written anywhere.
     # Tried before the registry fallback: the session already merges Omarchy's
@@ -1623,8 +1673,8 @@ build_settings_json() {
     fi
 
     vtext=$(human_value "$type" "$unit" "$scale" "$disp" "$value")
-    defval=$(setting_default_value "$id" 2>/dev/null) || defval=""
-    repoval=$(setting_repo_value "$id" 2>/dev/null) || repoval=""
+    defval=$(setting_default_value "$id" "$entry" "$file" "$path" "$type" "$fallback" 2>/dev/null) || defval=""
+    repoval=$(setting_repo_value "$id" "$entry" "$file" "$path" "$type" 2>/dev/null) || repoval=""
     deftext=$(human_value "$type" "$unit" "$scale" "$disp" "$defval")
     repotext=$(human_value "$type" "$unit" "$scale" "$disp" "$repoval")
     # Compare the rendered text, not the raw string: shell.toml holding "1" and

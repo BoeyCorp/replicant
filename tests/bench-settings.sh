@@ -9,10 +9,9 @@ ROOT="$(cd -- "$HERE/.." && pwd)"
 CORE="$ROOT/bin/replicant-core.sh"
 
 RUNS="${REPLICANT_SETTINGS_RUNS:-5}"
-# Calibrated for the 100-setting catalog (I4): the payload builds one row per
-# setting, so its cost scales with the catalog, not with the machine. The
-# 8000 ms budget fit 76 settings; 100 need proportionally more.
-MAX_MEDIAN_MS=11000
+# The builder resolves file sources once, then builds 100 rows. Keep a budget
+# that catches a return to per-row source discovery on this fixture.
+MAX_MEDIAN_MS=6000
 [[ "$RUNS" =~ ^[1-9][0-9]*$ ]] || { echo "RUNS must be a positive integer" >&2; exit 2; }
 
 BENCH_TMP="$(mktemp -d "${TMPDIR:-/tmp}/replicant-settings-bench-XXXXXX")"
