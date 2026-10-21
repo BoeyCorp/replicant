@@ -58,7 +58,7 @@ Item {
         foreground: panel.dim
         fontFamily: panel.ff
         enabled: !panel.updateChecking
-        tooltipText: panel.updateChecking ? "Disabled: the update check is running."
+        tooltipText: panel.updateChecking ? "Disabled: the update check is queued or running."
                                            : panel.updateAvailable ? panel.updateTooltip
                                            : "Replicant " + panel.versionText + ". Click to check its configured origin."
         onClicked: panel.checkUpdates(true)

@@ -393,7 +393,7 @@ Panel {
   readonly property bool saving: controller.isRunning("save")
   readonly property bool pulling: controller.isRunning("pull")
   readonly property bool checking: controller.isRunning("doctor")
-  readonly property bool updateChecking: controller.isRunning("update-check")
+  readonly property bool updateChecking: root.updateForcePending || controller.isRunning("update-check")
   readonly property bool statusRefreshing: hostWidget ? hostWidget.statusRefreshing === true : false
   property string busyLabel: ""
 
@@ -1186,12 +1186,13 @@ Panel {
   }
 
   // ── the plugin's own updates ──────────────────────────────────────────────
-  // The check asks the plugin's origin at most every six hours on its own, and
-  // always when the version in the header is clicked. An update goes through
-  // `omarchy plugin update`, which validates the new version and rolls back one
-  // that fails, and then the shell restarts to load it.
+  // Each panel open checks the local snapshot. The CLI asks the origin at most
+  // every six hours, or immediately when the version in the header is clicked.
+  // Omarchy validates an update and rolls back if it fails. The shell then
+  // restarts to load the new version.
   property var updateInfo: ({})
-  property bool updateCheckedOnce: false
+  property bool updateForcePending: false
+  property double updateLastCheckAt: 0
   readonly property bool updateAvailable: root.updateInfo.available === true && root.updateInfo.installed === true
   readonly property string updateTooltip: {
     var u = root.updateInfo
@@ -1202,10 +1203,15 @@ Panel {
          + (u.installed === true ? "" : "\nThis copy is a development checkout: update it with git pull.")
   }
   function checkUpdates(force) {
-    root.updateCheckedOnce = true
-    controller.run("update-check", force === true ? [root.cli, "update-check", "--json", "--fetch"]
-                                                    : [root.cli, "update-check", "--json"],
-                   { busy: false, background: force !== true, forced: force === true })
+    if (force === true && root.updateForcePending) return false
+    if (force !== true && Date.now() - root.updateLastCheckAt < 60000) return false
+    var result = controller.run("update-check", force === true ? [root.cli, "update-check", "--json", "--fetch"]
+                                                                : [root.cli, "update-check", "--json"],
+                                { busy: false, background: force !== true, forced: force === true })
+    if (result === "") return false
+    if (force === true) root.updateForcePending = true
+    root.updateLastCheckAt = Date.now()
+    return true
   }
   function askUpdate() {
     var u = root.updateInfo
@@ -1419,6 +1425,7 @@ Panel {
           root.lastOutput = text || "Could not resolve a full revision. Nothing was fetched."
         }
       } else if (job === "update-check") {
+        if (meta.forced === true) root.updateForcePending = false
         var validUpdate = code === 0
         try { root.updateInfo = JSON.parse(stdoutText || "{}"); validUpdate = validUpdate && typeof root.updateInfo.checkout === "boolean" }
         catch (e) { root.updateInfo = ({}); validUpdate = false }
@@ -1522,7 +1529,7 @@ Panel {
   function open() {
     root.opened = true; root.refresh()
     root.loadActiveTabData()
-    if (!root.updateCheckedOnce) root.checkUpdates(false)
+    root.checkUpdates(false)
   }
   function retryStatus() {
     if (hostWidget && hostWidget.retryStatus) hostWidget.retryStatus()

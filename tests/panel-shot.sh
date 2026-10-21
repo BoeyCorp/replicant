@@ -138,7 +138,6 @@ ShellRoot {
           p.shortcutsLoaded = true
           p.suggestLoaded = true
           p.backupsLoaded = true
-          p.updateCheckedOnce = true
           p.opened = true
         } else p.open()
         p.activeTab = Quickshell.env("SHOT_TAB") || "overview"
