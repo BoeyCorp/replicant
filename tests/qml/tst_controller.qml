@@ -137,6 +137,37 @@ TestCase {
     compare(controller.lastOutcome, "success")
   }
 
+  function test_failed_startup_settles_once_and_advances_queue() {
+    compare(controller.run("save", ["missing-cli", "save"], {}), "started")
+    compare(controller.run("status", ["fake-process", "20"], { busy: false, background: true }), "queued")
+    // No exited arrives for a missing executable: the watchdog settles once.
+    wait(400)
+    compare(completedJobs.length, 2)
+    compare(completedJobs[0], "save")
+    compare(controller.lastOutcome, "success")
+    compare(controller.currentJob, "")
+    compare(controller.queue.length, 0)
+    // A later valid command still runs.
+    completedJobs = []
+    compare(controller.run("save", ["fake-process", "10"], {}), "started")
+    wait(150)
+    compare(completedJobs.join(","), "save")
+  }
+
+  function test_failed_startup_racing_cancel_settles_once() {
+    compare(controller.run("save", ["missing-cli", "save"], { cancelable: true }), "started")
+    // The process never starts, so cancel is not allowed and must not settle twice.
+    compare(controller.cancel(), false)
+    wait(400)
+    compare(completedJobs.length, 1)
+    compare(completedJobs[0], "save")
+    compare(controller.currentJob, "")
+    compare(controller.queue.length, 0)
+    compare(controller.cancel(), false)
+    wait(50)
+    compare(completedJobs.length, 1)
+  }
+
   function test_locked_row_uses_key_word() {
     compare(R.stateWord("locked"), "locked, needs key")
   }

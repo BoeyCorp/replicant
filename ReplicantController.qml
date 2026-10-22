@@ -85,6 +85,7 @@ Item {
     process.environment = ({ REPLICANT_PROCESS_GROUP: null })
     process.command = cmd
     process.running = true
+    startupWatchdog.restart()
     controller.started(job, controller.currentMeta)
   }
 
@@ -95,6 +96,38 @@ Item {
     controller.progressCancellable = false
     process.running = false
     return true
+  }
+
+  // A missing or non-executable CLI wrapper never emits exited on a real
+  // Quickshell Process: currentJob stays set while nothing runs, and every
+  // later run() queues behind a job that will never settle. The watchdog
+  // settles that stale job exactly once as failed (or cancelled when a
+  // cancel raced it) and advances the queue so a later valid command runs.
+  function failStart() {
+    if (controller.settling || controller.currentJob === "") return false
+    controller.settling = true
+    var job = controller.currentJob
+    var meta = controller.currentMeta
+    var outcome = (controller.cancelRequested || controller.stage === "cancelled") ? "cancelled" : "failed"
+    var code = outcome === "cancelled" ? 143 : 127
+    controller.lastOutcome = outcome
+    var completionMeta = ({})
+    for (var key in meta) completionMeta[key] = meta[key]
+    completionMeta.outcome = outcome
+    controller.currentJob = ""
+    controller.currentCommand = []
+    controller.currentMeta = ({})
+    controller.progressCancellable = false
+    controller.cancelRequested = false
+    startupWatchdog.stop()
+    controller.completed(job, code, "", "Could not start the helper process. Check that the CLI wrapper exists and is executable.", completionMeta)
+    controller.settling = false
+    controller.dispatchNext()
+    return true
+  }
+  function handleStartupTimeout() {
+    if (controller.currentJob === "" || controller.settling || process.running) return false
+    return controller.failStart()
   }
 
   function isRunning(job) { return process.running && controller.currentJob === job }
@@ -119,6 +152,7 @@ Item {
 
   function settleCurrent(code) {
     if (controller.settling || controller.currentJob === "") return false
+    startupWatchdog.stop()
     controller.settling = true
     var job = controller.currentJob
     var meta = controller.currentMeta
@@ -169,6 +203,12 @@ Item {
     return true
   }
 
+  Timer {
+    id: startupWatchdog
+    interval: 250
+    repeat: false
+    onTriggered: controller.handleStartupTimeout()
+  }
   Process {
     id: process
     stdout: StdioCollector { waitForEnd: true }

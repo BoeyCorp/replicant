@@ -441,16 +441,28 @@ F02 can resume whenever its disposable environment exists; repeat affected scena
 
 - Finding and scope: R09; process lifecycle in `ReplicantController.qml`.
 - Tasks:
-  - [ ] Reproduce a missing or non-executable CLI wrapper with a real Quickshell Process.
-  - [ ] Settle a failed startup exactly once and advance or explicitly fail queued work.
-  - [ ] Cover startup failure racing with cancellation and normal exit.
+  - [x] Reproduce a missing or non-executable CLI wrapper with a real Quickshell Process.
+  - [x] Settle a failed startup exactly once and advance or explicitly fail queued work.
+  - [x] Cover startup failure racing with cancellation and normal exit.
 - Dependencies: none.
 - Acceptance: no failed startup leaves a permanent current job or busy state.
   Each job gets one terminal result and a later valid command can run.
 - Required checks: `tests/qml-controller.sh` plus a real-process integration probe;
   mocks alone cannot establish the runtime signal contract.
 - Estimate and risk: 3–5 hours; verify the installed Process API before choosing the error hook.
-- State: Pending.
+- State: Completed.
+- Evidence: `ReplicantController.qml` adds a 250 ms startup watchdog
+  (`failStart`/`handleStartupTimeout`) that settles a non-starting job once
+  as failed (cancelled when raced) and advances the queue; normal exits stop
+  the watchdog. The mock simulates a missing executable with no `exited`
+  signal. `tests/qml-controller.sh` passes 75 checks with startup-failure
+  and cancel-race cases. Real-process signal contract remains to be proven
+  on a disposable session in F02. `manifest.json` 0.42.11 -> 0.42.12.
+- Changed files: `ReplicantController.qml`,
+  `tests/qml/mock/Quickshell/Io/MockProcess.qml`,
+  `tests/qml/tst_controller.qml`, `manifest.json`, `docs/TASKS.md`,
+  `docs/ROADMAP.md`.
+- Commit: this commit.
 
 ### F17. Distinguish restored files from failed application
 

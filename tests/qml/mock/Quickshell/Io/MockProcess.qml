@@ -34,8 +34,24 @@ Item {
     onTriggered: mock.finish(0)
   }
 
+  function isMissingCommand() {
+    for (var i = 0; i < command.length; i++) {
+      if (String(command[i]).indexOf("missing-cli") >= 0) return true
+    }
+    return false
+  }
   onRunningChanged: {
     if (running) {
+      if (isMissingCommand()) {
+        // Real Quickshell never emits exited for a missing executable:
+        // running drops without a signal. Suppress the cancel path so the
+        // controller watchdog must settle the stale job.
+        progressTimer.stop()
+        finishTimer.stop()
+        finishing = true
+        running = false
+        return
+      }
       finishing = false
       var delay = command.length > 1 ? Number(command[1]) : 40
       finishTimer.interval = Math.max(1, isFinite(delay) ? delay : 40)
