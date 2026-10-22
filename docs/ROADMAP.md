@@ -92,8 +92,13 @@ F06–F26 are implemented in this checkout (F25 deferred: no bounded target; F26
   repository readiness, recovery, Settings edits, controller startup, and restore feedback.
 - Initialized-repository status probes were much slower than the empty-repository benchmark.
   New performance budgets must follow representative measurements.
-- F02 remains blocked on a disposable graphical Omarchy session. Previous live placement evidence
-  and offscreen passes do not establish the current install/enable/restart/removal lifecycle.
+- F02 closed 2026-10-22 with a documented exception: no disposable session
+  existed, so the user authorized verification on the active session with a
+  snapshot and reboot recovery. Lifecycle (disable/enable, remove/reinstall
+  from local path, shell restart), reversible edits, file-level rollback, and
+  all 10 human mouse/keyboard checks pass on 0.43.0 (`0733b99`).
+  Previous live placement evidence and offscreen passes are now supplemented
+  by this real-session record.
 
 ## Next
 
@@ -105,10 +110,12 @@ F06–F26 are implemented in this checkout (F25 deferred: no bounded target; F26
 3. **Optimization, F23–F25:** make skipped validation visible, execute real runtime checks,
    benchmark initialized repositories, and improve one measured bottleneck when justified.
 4. **Evolution, F26:** direct Restore section navigation shipped as 0.43.0 (selected 2026-10-22).
-   The four tabs stay; disposable-session human review remains open in F02.
+   The four tabs stay; human navigation checks pass as part of the F02 closure.
 
-All confirmed phases are implemented. F02 can resume independently when its disposable environment is available.
-Production readiness still requires F02 and the real-runtime evidence in F23.
+All confirmed phases are implemented and verified, including the F02 closure above.
+Production readiness still notes the real-runtime evidence in F23 and the 4
+round-trip test commits pushed to the private data repo during F02 (live
+values restored); no active-desktop state was left modified.
 No phase authorizes remote publication or changes to the active installation through this plan.
 
 ## Previous release and verification context

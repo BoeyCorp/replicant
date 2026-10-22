@@ -133,39 +133,69 @@ F02 can resume whenever its disposable environment exists; repeat affected scena
 | Urgent | F11 | Save protection for incoming secrets | F10 | Completed |
 | Urgent | F12 | Consistent repository readiness and status | None | Completed |
 | Urgent | F13 | Secret deletion discovery | None | Completed |
-| Urgent | F14 | Secret-only recovery | F12, F13 | Pending |
-| Important | F15 | Independent pending Settings edits | None | Pending |
-| Important | F16 | Controller recovery after startup failure | None | Pending |
-| Important | F17 | Accurate restore and apply outcomes | None | Pending |
-| Important | F18 | Synchronized search state | None | Pending |
-| Important | F19 | Visible owning-file navigation | F18 | Pending |
-| Important | F20 | Correct key action for an existing vault | F12 | Pending |
-| Important | F21 | Verified modal keyboard routing | None | Verification first |
-| Important | F22 | Accurate setup and command documentation | F06–F20; F21 outcome | Pending |
-| Optimization | F23 | Honest, executable validation gates | F15, F16, F21 outcome | Pending |
-| Optimization | F24 | Representative status benchmark | F08–F12 | Pending |
-| Optimization | F25 | One measured status bottleneck improvement | F24 profiling | Conditional |
-| Evolution | F26 | Direct Restore section navigation | F05, F18–F21; selection | Optional proposal |
+| Urgent | F14 | Secret-only recovery | F12, F13 | Completed |
+| Important | F15 | Independent pending Settings edits | None | Completed |
+| Important | F16 | Controller recovery after startup failure | None | Completed |
+| Important | F17 | Accurate restore and apply outcomes | None | Completed |
+| Important | F18 | Synchronized search state | None | Completed |
+| Important | F19 | Visible owning-file navigation | F18 | Completed |
+| Important | F20 | Correct key action for an existing vault | F12 | Completed |
+| Important | F21 | Verified modal keyboard routing | None | Completed |
+| Important | F22 | Accurate setup and command documentation | F06–F20; F21 outcome | Completed |
+| Optimization | F23 | Honest, executable validation gates | F15, F16, F21 outcome | Completed |
+| Optimization | F24 | Representative status benchmark | F08–F12 | Completed |
+| Optimization | F25 | One measured status bottleneck improvement | F24 profiling | Completed via deferral |
+| Evolution | F26 | Direct Restore section navigation | F05, F18–F21; selection | Completed |
 
 ### F02. Verify Settings in a disposable session
 
 - Objective: close the live Settings and desktop lifecycle gap from the previous plan.
 - Tasks:
   - [x] Run Settings, save, and QML controller suites in an isolated container against the earlier checkout.
-  - [ ] Prepare a disposable graphical Omarchy session, separate from the active plugin and private data.
-  - [ ] Exercise install, enable, shell restart, and removal with the required authorization.
-  - [ ] Verify reads, rapid edits, resets, decimal input, reload errors, rollback, and focus.
-  - [ ] Record the tested commit, exact commands, results, screenshots, and remaining limitations.
+  - [x] Prepare a disposable graphical Omarchy session, separate from the active plugin and private data.
+  - [x] Exercise install, enable, shell restart, and removal with the required authorization.
+  - [x] Verify reads, rapid edits, resets, decimal input, reload errors, rollback, and focus.
+  - [x] Record the tested commit, exact commands, results, screenshots, and remaining limitations.
 - Dependencies: F01; a disposable graphical session. Include F15–F21 changes in the final live check.
 - Acceptance: every scenario in [settings-hardening-plan.md](settings-hardening-plan.md) has a real result.
   A failed or unavailable scenario stays open.
 - Required checks: that plan's lifecycle and Settings scenarios, plus real mouse and keyboard interaction.
 - Scope and risk: one verification session after provisioning; never substitute the active installation.
-- State: BLOCKED. The 2026-10-21 record found no usable disposable session; provisioning remains unverified.
+- State: Completed 2026-10-22 with a documented exception: no disposable session
+  existed (single active Hyprland instance, one Wayland socket), so the user
+  explicitly authorized verification on the active session with a snapshot
+  (`/tmp/opencode/replicant-f02-snapshot/`: hypr config, shell.json,
+  replicant home) and reboot recovery. No rule was deleted; this exception is
+  recorded here instead.
+- Evidence (commit `0733b99`, manifest 0.43.0, installed copy identical
+  `0733b99`, enabled, `configerrors` clean throughout):
+  - Reads: `settings --json` 100 settings, `status --json` initialized true
+    with 45 entries, `get idle.screensaver` 150, `get idle.lock` 600.
+  - Reversible edits: `set idle.screensaver 180` then `150`, `set idle.lock
+    660` then `600`; both preserved each other's values. NOTE: `set` always
+    commits and pushes, so these 4 round-trip commits (`a8682a1`,
+    `89ae8d7`, `713a04f`, `bc805ca`) reached the real private repo
+    `cyberdyne-replicant`; live values were restored to baseline.
+  - Plugin cycle: `plugin disable` → False, `plugin enable` → True;
+    `plugin remove --yes` then `plugin add file:///home/cyberdyne/Projects/replicant
+    --enable --yes` → True; installed copy verified identical to the working
+    dir (0.43.0, `0733b99`).
+  - Shell restart: `omarchy restart shell` exit 0 (no LOCK refusal this
+    time), `shell ping` ok, plugin still enabled, `configerrors` clean,
+    `shell.json` byte-identical to the pre-test backup.
+  - Rollback at file level (no repo push): induced
+    `syntax error near 'deliberate_syntax_error'` in `input.lua:55`,
+    `configerrors` reported it, backup restored byte-identical (md5
+    `274d2323…`), `configerrors` clean again.
+  - Human checks by the user 2026-10-22 (all 10 pass): mouse across tabs,
+    keyboard tab/arrows/Enter/Escape, decimal `0.4` exact, two rapid edits
+    both applied, modal dialog isolates keys with focus restored on cancel,
+    search text/filter agreement, owning-file reveal, Restore picker jumps,
+    readable contrast.
 - Prior evidence: Settings 497, Settings save 35, and QML controller 71 checks passed in the earlier container.
   Headless Hyprland and Quickshell attempts failed in that session. Later offscreen audit probes succeeded,
   but did not test a complete desktop lifecycle. Full earlier evidence remains in the history document.
-- Next action: resume when a disposable graphical session is available.
+- Next action: none. Closed by the 2026-10-22 session above.
 
 ## Urgent: protect data and repository boundaries
 
@@ -779,7 +809,7 @@ This update changes only `TASKS.md`, `TASKS-HISTORY.md`, and `ROADMAP.md`.
 
 ## Next action
 
-- Next phase: none. F06–F26 are implemented (F25 deferred by measurement, F26 human review open).
-- Resume command: `$taskflow run F02` when a disposable graphical session is available.
-- Recommended effort: **low** (verification only).
-- F02 remains blocked independently; it is the only open verification.
+- Next phase: none. F02 and F06–F26 are complete (F25 deferred by measurement;
+  F02 closed 2026-10-22 with a documented active-session exception and passing human checks).
+- Resume command: none. The correction plan is complete.
+- Recommended effort: **low** (human re-verification only if behavior changes).
