@@ -126,7 +126,7 @@ F02 can resume whenever its disposable environment exists; repeat affected scena
 | --- | --- | --- | --- | --- |
 | Existing verification | F02 | Real Settings and desktop lifecycle evidence | F01; disposable session | BLOCKED |
 | Urgent | F06 | Explicit private-repository verification | None | Completed |
-| Urgent | F07 | Restrictive secret and backup permissions | None | Pending |
+| Urgent | F07 | Restrictive secret and backup permissions | None | Completed |
 | Urgent | F08 | One effective secret scope | None | Pending |
 | Urgent | F09 | Durable incoming config markers | None | Pending |
 | Urgent | F10 | Encrypted incoming-change discovery | F08, F09 | Pending |
@@ -201,15 +201,26 @@ F02 can resume whenever its disposable environment exists; repeat affected scena
 
 - Finding and scope: R05; regular and privileged secret restore paths in `bin/lib/crypto.sh`.
 - Tasks:
-  - [ ] Cover identical-content and changed-content restores from a mode-644 live secret.
-  - [ ] Enforce mode 600 for the resulting secret and every newly created plaintext backup.
-  - [ ] Preserve intended ownership and handle permission failures explicitly.
+  - [x] Cover identical-content and changed-content restores from a mode-644 live secret.
+  - [x] Enforce mode 600 for the resulting secret and every newly created plaintext backup.
+  - [x] Preserve intended ownership and handle permission failures explicitly.
 - Dependencies: none.
 - Acceptance: both restore paths leave protected files at mode 600; failed protection cannot report successful restoration.
 - Required checks: `tests/test-crypto.sh`, `tests/test-restore-secrets.sh`, `tests/test-leaks.sh`;
   exercise privileged operations through an isolated stub or container.
 - Estimate and risk: 2–4 hours; preserve rollback behavior and avoid disclosing plaintext in diagnostics.
-- State: Pending.
+- State: Completed.
+- Evidence: `vault_restore_entry` and `vault_restore_entry_privileged` now
+  chmod 600 an identical-content live file and every new `.bak.<epoch>`
+  backup, verify mode 600, and fail closed when chmod, chown, or verification
+  fails. `tests/test-restore-secrets.sh` grows to 60 checks with HOME and
+  privileged identical/backup cases plus a chmod-failure case.
+  `tests/test-crypto.sh` passes 97 checks. `tests/test-leaks.sh` passes 18
+  checks. `tests/gate.sh G6` passes 16 checks. `README.md` states restored
+  secrets and backups stay at mode 600. `manifest.json` 0.42.2 -> 0.42.3.
+- Changed files: `bin/lib/crypto.sh`, `tests/test-restore-secrets.sh`,
+  `README.md`, `manifest.json`, `docs/TASKS.md`, `docs/ROADMAP.md`.
+- Commit: this commit.
 
 ### F08. Preserve the effective scope of encrypted secrets
 
@@ -533,7 +544,7 @@ This update changes only `TASKS.md`, `TASKS-HISTORY.md`, and `ROADMAP.md`.
 
 ## Next action
 
-- Next phase: **F07**, restrictive secret and backup permissions.
-- Resume command: `$taskflow run F07`.
+- Next phase: **F08**, one effective secret scope.
+- Resume command: `$taskflow run F08`.
 - Recommended effort: **medium**.
 - F02 remains blocked independently; do not wait for its environment before addressing confirmed data risks.

@@ -215,8 +215,9 @@ A plugin with a settings file of its own, `~/.config/omarchy/<name>.json`, also 
   the group bar. Appearance adds the monospace font and the bar center anchor.
 - **Lid and sleep** on laptops: what closing the lid does on battery, on AC, and when docked.
 - **Two ways back for every value**: one button to Omarchy's default, one to what your repo has.
-- **Secrets stay secret.** SSH keys and `.env` files are stored at mode 600. The panel shows a kind,
-  a mode and a count of variables. No value is ever drawn on screen, and the diff refuses to show one.
+- **Secrets stay secret.** SSH keys and `.env` files are stored at mode 600. Restored secrets
+  and their `.bak.<epoch>` backups stay at mode 600, and a failed permission fix fails the restore.
+  The panel shows a kind, a mode and a count of variables. No value is ever drawn on screen, and the diff refuses to show one.
 - **An undo for the undo.** Every write keeps the version it replaced as `.bak.<epoch>`. The
   Restore tab lists them and puts one back with a button. Undo is a swap, so it is itself reversible.
 - **Every save names its files.** Open a save under **Recent saves** to see what it touched.

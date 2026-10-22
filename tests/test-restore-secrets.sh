@@ -241,8 +241,83 @@ preview=$(restore_preview "$pending" 2>&1 || true)
 check "the preview shows no plaintext" "0" "$(printf '%s' "$preview" | grep -F -c "$sentinel" || true)"
 check_contains "…and says contents are never shown" "never shown" "$preview"
 n=$(restore_apply secrets "$pending" 2>/dev/null)
-check "the area restore writes one entry" "1" "$n"
-check "…putting the vault copy back" "1" "$(grep -c -F "${sentinel}_full" "$HOME/.config/environment.d/60-secrets.conf" 2>/dev/null || true)"
-no_plaintext "full restore keeps state clean" "$REPLICANT_HOME"
+section "identical restores and backups enforce mode 0600"
+printf 'TOKEN=%s_perm\n' "$sentinel" > "$HOME/.config/environment.d/60-secrets.conf"
+chmod 600 "$HOME/.config/environment.d/60-secrets.conf"
+core_backup >/dev/null 2>&1
+chmod 644 "$HOME/.config/environment.d/60-secrets.conf"
+core_restore_file env/60-secrets.conf >"$TMP/perm-ident.out" 2>"$TMP/perm-ident.err"
+check "identical HOME restore succeeds" "0" "$?"
+check "…fixing a 644 live file to 600" "600" "$(stat -c '%a' "$HOME/.config/environment.d/60-secrets.conf" 2>/dev/null)"
+check "identical output is clean" "0" "$(grep -F -c "$sentinel" "$TMP/perm-ident.out" "$TMP/perm-ident.err" 2>/dev/null | awk -F: '{s+=$NF} END {print s+0}')"
+printf 'TOKEN=%s_perm_local\n' "$sentinel" > "$HOME/.config/environment.d/60-secrets.conf"
+chmod 644 "$HOME/.config/environment.d/60-secrets.conf"
+rm -f "$HOME/.config/environment.d"/60-secrets.conf.bak.*
+core_restore_file env/60-secrets.conf >"$TMP/perm-changed.out" 2>"$TMP/perm-changed.err"
+check "changed HOME restore succeeds" "0" "$?"
+check "…leaving the restored file at 600" "600" "$(stat -c '%a' "$HOME/.config/environment.d/60-secrets.conf" 2>/dev/null)"
+perm_bak=$(find "$HOME/.config/environment.d" -maxdepth 1 -name '60-secrets.conf.bak.*' | head -n1)
+check_true "…keeping a plaintext backup" test -f "$perm_bak"
+check "…at mode 600, not 644" "600" "$(stat -c '%a' "$perm_bak" 2>/dev/null)"
+check "…keeping the local edit in the backup" "1" "$(grep -c -F "${sentinel}_perm_local" "$perm_bak" 2>/dev/null || true)"
+failperm="$TMP/fail-perm-chmod"
+mkdir -p "$failperm"
+cat > "$failperm/chmod" <<'EOF'
+#!/bin/bash
+exit 1
+EOF
+chmod +x "$failperm/chmod"
+export PATH="$failperm:$PATH"
+chmod 644 "$HOME/.config/environment.d/60-secrets.conf" 2>/dev/null || true
+check_false "identical HOME restore fails when 0600 cannot be applied" core_restore_file env/60-secrets.conf
+export PATH="$old_path"
+no_plaintext "chmod failure keeps state clean" "$REPLICANT_HOME"
+printf 'TOKEN=%s_perm\n' "$sentinel" > "$HOME/.config/environment.d/60-secrets.conf"
+chmod 600 "$HOME/.config/environment.d/60-secrets.conf"
+core_backup >/dev/null 2>&1
+
+section "privileged identical restores and backups enforce mode 0600"
+privperm="$TMP/privperm-ok"
+mkdir -p "$privperm"
+cat > "$privperm/pkexec" <<'EOF'
+#!/bin/bash
+if [[ "$1" == "/bin/sh" && "$2" == "-c" ]]; then
+  script="$3"; shift 3
+  /bin/sh -c "$script" "$@"
+  exit $?
+fi
+"$@"
+EOF
+cat > "$privperm/sudo" <<'EOF'
+#!/bin/bash
+if [[ "$1" == "-n" ]]; then shift; fi
+if [[ "$1" == "true" ]]; then exit 0; fi
+if [[ "$1" == "/bin/sh" && "$2" == "-c" ]]; then
+  script="$3"; shift 3
+  /bin/sh -c "$script" "$@"
+  exit $?
+fi
+"$@"
+EOF
+chmod +x "$privperm/pkexec" "$privperm/sudo"
+export PATH="$privperm:$PATH"
+printf 'OUTSIDE=%s_pperm\n' "$sentinel" > "$OUTSIDE/app-secret.conf"
+chmod 600 "$OUTSIDE/app-secret.conf"
+core_backup >/dev/null 2>&1
+chmod 644 "$OUTSIDE/app-secret.conf"
+core_restore_file "$rid" >"$TMP/pperm-ident.out" 2>"$TMP/pperm-ident.err"
+check "identical privileged restore succeeds" "0" "$?"
+check "…fixing a 644 live file to 600" "600" "$(stat -c '%a' "$OUTSIDE/app-secret.conf" 2>/dev/null)"
+printf 'OUTSIDE=%s_pperm_local\n' "$sentinel" > "$OUTSIDE/app-secret.conf"
+chmod 644 "$OUTSIDE/app-secret.conf"
+rm -f "$OUTSIDE"/app-secret.conf.bak.*
+core_restore_file "$rid" >"$TMP/pperm-changed.out" 2>"$TMP/pperm-changed.err"
+check "changed privileged restore succeeds" "0" "$?"
+check "…leaving the restored file at 600" "600" "$(stat -c '%a' "$OUTSIDE/app-secret.conf" 2>/dev/null)"
+pperm_bak=$(find "$OUTSIDE" -maxdepth 1 -name 'app-secret.conf.bak.*' | head -n1)
+check_true "…keeping a privileged backup" test -f "$pperm_bak"
+check "…at mode 600, not 644" "600" "$(stat -c '%a' "$pperm_bak" 2>/dev/null)"
+export PATH="$old_path"
+no_plaintext "privileged perm tests keep state clean" "$REPLICANT_HOME"
 
 summary

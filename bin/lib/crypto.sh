@@ -605,6 +605,17 @@ vault_restore_entry() {
     return 1
   }
   if [[ -f "$src" ]] && cmp -s "$plain" "$src" 2>/dev/null; then
+    if ! chmod 600 -- "$src" 2>/dev/null; then
+      _vault_drop_restore_plain
+      printf 'replicant: %s matches the vault copy but mode 0600 cannot be applied — fix it before use\n' "$rel" >&2
+      return 1
+    fi
+    mode=$(stat -c '%a' -- "$src" 2>/dev/null || true)
+    if [[ "$mode" != "600" ]]; then
+      _vault_drop_restore_plain
+      printf 'replicant: %s matches the vault copy but its mode is %s, not 0600\n' "$rel" "${mode:-unknown}" >&2
+      return 1
+    fi
     _vault_drop_restore_plain
     printf '%s already matches the copy in your repo\n' "$rel" >&2
     return 0
@@ -613,6 +624,12 @@ vault_restore_entry() {
   if [[ -e "$src" ]]; then
     backup="$src.bak.$(date +%s)"
     cp -a -- "$src" "$backup" || { _vault_drop_restore_plain; return 1; }
+    chmod 600 -- "$backup" 2>/dev/null || {
+      rm -f -- "$backup" 2>/dev/null || true
+      _vault_drop_restore_plain
+      printf 'replicant: cannot secure the backup for %s — the live file is untouched\n' "$rel" >&2
+      return 1
+    }
   fi
   if ! mv -T -- "$plain" "$src" 2>/dev/null; then
     _vault_drop_restore_plain
@@ -648,7 +665,7 @@ vault_restore_entry() {
 # plaintext ever lands below REPLICANT_HOME and none is retained: a failure
 # removes the temp and prints only a retry command.
 vault_restore_entry_privileged() {
-  local rel="$1" src="$2" blobfile="$3" tmp idf apply script
+  local rel="$1" src="$2" blobfile="$3" tmp idf apply script mode
   vault_arm_traps
   tmp=$(vault_priv_mktemp "$(dirname -- "$src")") || {
     printf 'replicant: cannot acquire privilege for %s — run with a polkit agent or passwordless sudo, then retry: replicant restore-file %s\n' "$src" "$rel" >&2
@@ -665,6 +682,18 @@ vault_restore_entry_privileged() {
     return 1
   fi
   if vault_priv_run test -f "$src" 2>/dev/null && vault_priv_run cmp -s "$tmp" "$src" 2>/dev/null; then
+    if ! vault_priv_run chmod 600 -- "$src" 2>/dev/null; then
+      _vault_drop_priv_temp "$tmp"
+      printf 'replicant: %s matches the vault copy but mode 0600 cannot be applied — fix it before use; retry: replicant restore-file %s\n' "$rel" "$rel" >&2
+      return 1
+    fi
+    mode=$(vault_priv_run stat -c '%a' -- "$src" 2>/dev/null || true)
+    mode=$(printf '%s' "$mode" | tr -d '[:space:]' | tail -n1)
+    if [[ "$mode" != "600" ]]; then
+      _vault_drop_priv_temp "$tmp"
+      printf 'replicant: %s matches the vault copy but its mode is %s, not 0600; retry: replicant restore-file %s\n' "$rel" "${mode:-unknown}" "$rel" >&2
+      return 1
+    fi
     _vault_drop_priv_temp "$tmp"
     printf '%s already matches the copy in your repo\n' "$rel" >&2
     return 0
@@ -672,7 +701,9 @@ vault_restore_entry_privileged() {
   script='tmp="$1"; dst="$2";
     if [ -e "$dst" ]; then
       owner=$(stat -c "%u:%g" "$dst" 2>/dev/null || true);
-      cp -a "$dst" "$dst.bak.$(date +%s)" || exit 1;
+      bak="$dst.bak.$(date +%s)";
+      cp -a "$dst" "$bak" || exit 1;
+      chmod 600 "$bak" || exit 1;
     else
       owner="";
     fi;

@@ -1,10 +1,15 @@
 # Roadmap
 
 The executable plan, dependencies, acceptance criteria, and evidence are in [TASKS.md](TASKS.md).
-F06 is implemented in this checkout; F07 is next.
+F06–F07 are implemented in this checkout; F08 is next.
 
 ## Completed
 
+- F07 enforces mode 600 on identical restores and every new secret backup in
+  both HOME and privileged paths, and fails closed when protection fails.
+  Covered in `tests/test-restore-secrets.sh` (60 checks),
+  `tests/test-crypto.sh` (97 checks), `tests/test-leaks.sh` (18 checks),
+  and `tests/gate.sh G6`. Shipped as 0.42.3.
 - F06 requires explicit PRIVATE visibility before activation or push: unknown,
   empty, malformed, or failing results stop with an actionable message and no
   local mutation, and a transient failure retries as PRIVATE. Covered in
@@ -55,7 +60,7 @@ F06 is implemented in this checkout; F07 is next.
 4. **Evolution, F26:** optionally add direct Restore section navigation from the F05 proposal.
    Keep the existing four tabs; do not treat this proposal as a required defect correction.
 
-Start with **F07**. F02 can resume independently when its disposable environment is available.
+Start with **F08**. F02 can resume independently when its disposable environment is available.
 Production readiness still requires F02 and the real-runtime evidence in F23.
 No phase authorizes remote publication or changes to the active installation through this plan.
 
