@@ -284,6 +284,41 @@ check_contains "doctor reports the key ready" "secret key ready" \
 check "remediation is a no-op when ready" "replicant key status" \
   "$(key_remediation 2>/dev/null)"
 
+section "an Off secret keeps its scope and ciphertext through ordinary saves"
+printf 'FIRST=crypto-fixture-off\n' > "$HOME/.config/environment.d/60-secrets.conf"
+core_backup >/dev/null 2>&1
+check "the Off fixture saves as shared first" "shared" \
+  "$(vault_index_decrypt 2>/dev/null | jq -r '.secrets[] | select(.id=="env/60-secrets.conf") | .scope')"
+core_scope env/60-secrets.conf off >/dev/null 2>&1
+check "the vault records Off" "off" \
+  "$(vault_index_decrypt 2>/dev/null | jq -r '.secrets[] | select(.id=="env/60-secrets.conf") | .scope')"
+blob_off=$(vault_index_decrypt 2>/dev/null | jq -r '.secrets[] | select(.id=="env/60-secrets.conf") | .blob')
+cipher_before=$(sha256sum "$REPO_DIR/vault/blobs/$blob_off.age" | cut -d' ' -f1)
+printf 'FIRST=crypto-fixture-off-local\n' > "$HOME/.config/environment.d/60-secrets.conf"
+core_backup >/dev/null 2>&1
+check "an ordinary save keeps Off" "off" \
+  "$(vault_index_decrypt 2>/dev/null | jq -r '.secrets[] | select(.id=="env/60-secrets.conf") | .scope')"
+cipher_after=$(sha256sum "$REPO_DIR/vault/blobs/$blob_off.age" | cut -d' ' -f1)
+check "…and leaves the stored ciphertext alone" "$cipher_before" "$cipher_after"
+registry_build >/dev/null 2>&1
+check "…with the registry agreeing" "off" \
+  "$(registry_row_for env/60-secrets.conf | awk -F'\t' '{print $5}')"
+check "…and status agreeing" "off" \
+  "$(build_entries_json 2>/dev/null | jq -r '.[] | select(.id=="env/60-secrets.conf") | .scope')"
+check "…and the row off" "off" \
+  "$(build_entries_json 2>/dev/null | jq -r '.[] | select(.id=="env/60-secrets.conf") | .sync_state')"
+check_false "a single save of an Off secret refuses" snapshot_one env/60-secrets.conf
+check "…keeping Off" "off" \
+  "$(vault_index_decrypt 2>/dev/null | jq -r '.secrets[] | select(.id=="env/60-secrets.conf") | .scope')"
+core_scope env/60-secrets.conf shared >/dev/null 2>&1
+printf 'FIRST=crypto-fixture-off-back\n' > "$HOME/.config/environment.d/60-secrets.conf"
+core_backup >/dev/null 2>&1
+check "a shared secret still saves" "1" \
+  "$(age -d -i "$KEYS" "$REPO_DIR/vault/blobs/$(vault_index_decrypt 2>/dev/null | jq -r '.secrets[] | select(.id=="env/60-secrets.conf") | .blob').age" 2>/dev/null | grep -c crypto-fixture-off-back || true)"
+check "…as shared" "shared" \
+  "$(vault_index_decrypt 2>/dev/null | jq -r '.secrets[] | select(.id=="env/60-secrets.conf") | .scope')"
+check_false "a secret cannot use the profile scope" core_scope env/60-secrets.conf profile
+
 section "the hook lets vault ciphertext through"
 printf 'FIRST=crypto-fixture-delta\n' > "$HOME/.config/environment.d/60-secrets.conf"
 core_backup >/dev/null 2>&1

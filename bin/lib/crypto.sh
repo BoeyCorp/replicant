@@ -369,8 +369,27 @@ vault_save_entry() {
   }
   mv -f -- "$staged" "$blobs/$blob.age"
   _vault_drop_tree "$encdir"
-  local scope
-  scope_into scope "$rel"
+  local scope existing_scope
+  existing_scope=$(vault_index_scope "$idx" "$rel")
+  case "$existing_scope" in
+    shared|off) scope="$existing_scope" ;;
+    profile)
+      printf 'replicant: secret %s has unsupported profile scope — scope it to shared or off, then retry\n' "$rel" >&2
+      return 1 ;;
+    "")
+      scope_into scope "$rel"
+      if [[ "$scope" == profile ]]; then
+        printf 'replicant: secret entries cannot use the profile scope: %s\n' "$rel" >&2
+        return 1
+      fi
+      case "$scope" in shared|off) ;; *)
+        printf 'replicant: secret %s has unexpected scope %s\n' "$rel" "$scope" >&2
+        return 1 ;;
+      esac ;;
+    *)
+      printf 'replicant: secret %s has invalid scope %s\n' "$rel" "$existing_scope" >&2
+      return 1 ;;
+  esac
   if repo_is_ready; then
     jq -c --arg id "$rel" --arg path "$src" --arg scope "$scope" \
       --arg source "$source" --arg blob "$blob" \
@@ -412,9 +431,13 @@ vault_save_all() {
   idx=$(vault_index_decrypt) || return 1
   rec=$(vault_recipient) || return 1
   local -a errs=() new_blobs=()
-  local scopied=0 old_blob new_blob
+  local scopied=0 old_blob new_blob vscope
   for entry in "${TRACKED_SECRETS[@]}"; do
     src="${entry%%:*}"; rel="${entry##*:}"
+    vscope=$(vault_index_scope "$idx" "$rel")
+    if [[ "$vscope" == off ]]; then
+      continue
+    fi
     is_excluded "$rel" && continue
     if [[ -f $src && ! -r $src ]]; then
       printf '  · %s is readable by root only — skipped this save\n' "${src/#$HOME/\~}" >&2

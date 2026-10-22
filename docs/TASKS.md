@@ -127,7 +127,7 @@ F02 can resume whenever its disposable environment exists; repeat affected scena
 | Existing verification | F02 | Real Settings and desktop lifecycle evidence | F01; disposable session | BLOCKED |
 | Urgent | F06 | Explicit private-repository verification | None | Completed |
 | Urgent | F07 | Restrictive secret and backup permissions | None | Completed |
-| Urgent | F08 | One effective secret scope | None | Pending |
+| Urgent | F08 | One effective secret scope | None | Completed |
 | Urgent | F09 | Durable incoming config markers | None | Pending |
 | Urgent | F10 | Encrypted incoming-change discovery | F08, F09 | Pending |
 | Urgent | F11 | Save protection for incoming secrets | F10 | Pending |
@@ -226,16 +226,28 @@ F02 can resume whenever its disposable environment exists; repeat affected scena
 
 - Finding and scope: R03; scope lookup, vault save, and registry projection.
 - Tasks:
-  - [ ] Reproduce Off becoming Shared after a changed secret is saved.
-  - [ ] Resolve secret scope from its authoritative vault metadata throughout save and status.
-  - [ ] Preserve Off across single, bulk, and automatic saves and restores.
+  - [x] Reproduce Off becoming Shared after a changed secret is saved.
+  - [x] Resolve secret scope from its authoritative vault metadata throughout save and status.
+  - [x] Preserve Off across single, bulk, and automatic saves and restores.
 - Dependencies: none.
 - Acceptance: an Off secret remains Off and its stored content does not change during ordinary saves.
   Shared secrets remain saveable; unsupported profile scope stays rejected.
 - Required checks: `tests/test-crypto.sh`, `tests/test-bulk-vault.sh`, `tests/test-state.sh`;
   assert scope, ciphertext preservation, and matching CLI/panel counts.
 - Estimate and risk: 3–5 hours; update the existing contract without a new metadata format.
-- State: Pending.
+- State: Completed.
+- Evidence: `vault_save_entry` keeps the existing vault index scope for saved
+  secrets and rejects profile; `vault_save_all` skips Off from the vault index
+  so ciphertext stays unchanged; `core_scope` reads the old scope from the
+  vault index for secrets. `tests/test-crypto.sh` passes 109 checks with Off
+  preservation, ciphertext, registry/status agreement, single-save refusal,
+  shared save, and profile rejection. `tests/test-bulk-vault.sh` passes 13
+  checks. `tests/test-state.sh` passes 103 checks. `manifest.json` 0.42.3
+  -> 0.42.4.
+- Changed files: `bin/lib/crypto.sh`, `bin/lib/scopes.sh`,
+  `tests/test-crypto.sh`, `manifest.json`, `docs/TASKS.md`,
+  `docs/ROADMAP.md`.
+- Commit: this commit.
 
 ### F09. Preserve unresolved incoming config changes
 
@@ -544,7 +556,7 @@ This update changes only `TASKS.md`, `TASKS-HISTORY.md`, and `ROADMAP.md`.
 
 ## Next action
 
-- Next phase: **F08**, one effective secret scope.
-- Resume command: `$taskflow run F08`.
+- Next phase: **F09**, durable incoming config markers.
+- Resume command: `$taskflow run F09`.
 - Recommended effort: **medium**.
 - F02 remains blocked independently; do not wait for its environment before addressing confirmed data risks.

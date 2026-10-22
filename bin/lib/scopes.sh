@@ -351,7 +351,11 @@ core_scope() {
   case "$want" in shared|profile|off) ;; *)
     echo "scope: expected 'shared', 'profile' or 'off'" >&2; return 1 ;; esac
   resolve_manifest_src "$rel" >/dev/null 2>&1 || { echo "unknown id: $rel" >&2; return 1; }
-  old=$(scope_for "$rel")
+  if is_secret_rel "$rel"; then
+    old=$(vault_index_decrypt 2>/dev/null | jq -r --arg id "$rel" '.secrets[] | select(.id == $id) | .scope // empty' 2>/dev/null || true)
+  else
+    old=$(scope_for "$rel")
+  fi
   [[ "$old" == "$want" ]] && { echo "$rel is already '$want'" >&2; return 0; }
   scope_store "$rel" "$want" || return 1
 
