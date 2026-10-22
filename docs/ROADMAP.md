@@ -1,10 +1,11 @@
 # Roadmap
 
 The executable plan, dependencies, acceptance criteria, and evidence are in [TASKS.md](TASKS.md).
-F06–F17 are implemented in this checkout; F18 is next.
+F06–F18 are implemented in this checkout; F19 is next.
 
 ## Completed
 
+- F18 keeps visible search text synchronized through one owned-state contract with guarded field updates. Covered in `tests/qml-controller.sh` (77 checks) and `tests/test-usability.sh` (143 checks). Shipped as 0.42.14.
 - F17 distinguishes restored files from failed application: a failed apply returns 1 with a retry hint while the copy and backup remain. Covered in `tests/test-cli.sh` (365 checks), `tests/test-journey.sh` (76 checks), `tests/test-settings.sh` (497 checks), and `tests/test-usability.sh` (143 checks). Shipped as 0.42.13.
 - F16 recovers the controller after a failed process start with a watchdog that settles once and advances the queue. Covered in `tests/qml-controller.sh` (75 checks). Shipped as 0.42.12.
 - F15 retains independent Settings edits through a per-ID debounce store and flushes on timer, tab change, and close. Covered in `tests/qml-controller.sh` (73 checks), `tests/test-settings-save.sh` (35 checks), and `tests/test-usability.sh` (143 checks). Shipped as 0.42.11.

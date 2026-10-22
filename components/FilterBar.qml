@@ -5,6 +5,7 @@ import Quickshell.Io
 import qs.Commons
 import qs.Commons as Commons
 import qs.Ui
+import "../replicant.js" as R
 
 // The top of a list tab: a search field, "Collapse all", the filters, and the
 // legend of the badges. Configs and Settings use the same one, in the same
@@ -16,11 +17,19 @@ Column {
   property string placeholder: ""
   property var options: []
   property string value: ""
+  property string searchText: ""
   property string legend: ""
   property string collapseTip: ""
   signal searchEdited(string text)
   signal filterPicked(string value)
   function focusSearch() { field.forceActiveFocus() }
+  // One search-state contract for keyboard input and programmatic
+  // navigation: the panel owns the text, the field mirrors it. User typing
+  // emits searchEdited, the panel updates searchText, and the guard below
+  // keeps that round-trip from looping. Programmatic clear or chip
+  // navigation changes searchText, and the field follows without erasing
+  // active typing that already matches.
+  onSearchTextChanged: if (R.searchSyncNeedsFieldUpdate(field.text, fb.searchText)) field.text = fb.searchText
   spacing: Style.space(8)
 
   Row {
@@ -34,9 +43,10 @@ Column {
       foreground: panel.fg
       accent: Commons.Color.accent
       font.family: panel.ff
-      onTextChanged: fb.searchEdited(text)
+      Component.onCompleted: if (R.searchSyncNeedsFieldUpdate(field.text, fb.searchText)) field.text = fb.searchText
+      onTextChanged: if (R.searchSyncShouldEmit(field.text, fb.searchText)) fb.searchEdited(field.text)
       onActiveFocusChanged: panel.noteFocus(field, activeFocus)
-      Keys.onEscapePressed: { text = ""; panel.releaseFocus() }
+      Keys.onEscapePressed: { field.text = ""; panel.releaseFocus() }
     }
     Button {
       id: collapseBtn

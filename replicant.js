@@ -933,3 +933,17 @@ function pendingSettingsCount(store) {
   var s = store || createPendingSettings()
   return s.order.length
 }
+
+// ── Search field synchronisation ──────────────────────────────────────
+// One search-state contract for keyboard input and programmatic navigation.
+// The panel owns the text (fileSearch/settingSearch); the visible field
+// mirrors it. Emit only when the field differs from the owned state (user
+// typing), and overwrite the field only when the owned state differs from
+// the field (programmatic clear or chip navigation). The same comparison
+// both ways keeps the round-trip from looping and from erasing active typing.
+function searchSyncShouldEmit(fieldText, ownedText) {
+  return String(fieldText || "") !== String(ownedText || "")
+}
+function searchSyncNeedsFieldUpdate(fieldText, ownedText) {
+  return String(fieldText || "") !== String(ownedText || "")
+}

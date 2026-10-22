@@ -493,14 +493,26 @@ F02 can resume whenever its disposable environment exists; repeat affected scena
 
 - Finding and scope: R12; `components/FilterBar.qml` and panel search state.
 - Tasks:
-  - [ ] Reproduce programmatic clear and replacement while a search field has visible text.
-  - [ ] Use one search-state contract for keyboard input and programmatic navigation.
+  - [x] Reproduce programmatic clear and replacement while a search field has visible text.
+  - [x] Use one search-state contract for keyboard input and programmatic navigation.
 - Dependencies: none.
 - Acceptance: field text and effective filter agree after typing, clear, tab switching, and chip navigation.
   Programmatic updates do not create feedback loops or erase active typing.
 - Required checks: `tests/test-usability.sh`, executable QML interaction tests, and applicable G7 screenshots.
 - Estimate and risk: 2–3 hours; check focus and cursor behavior for both Configs and Settings consumers.
-- State: Pending.
+- State: Completed.
+- Evidence: `FilterBar.qml` owns the text through `searchText`
+  (`panel.fileSearch`/`panel.settingSearch`) with guarded round-trip via
+  `R.searchSyncShouldEmit`/`R.searchSyncNeedsFieldUpdate`; programmatic
+  clear and navigation update the field once, typing emits once. New QML
+  cases cover emit and round-trip without loops. `tests/qml-controller.sh`
+  passes 77 checks, `tests/test-usability.sh` passes 143 checks, and
+  `qmllint` passes. `manifest.json` 0.42.13 -> 0.42.14.
+- Changed files: `components/FilterBar.qml`, `components/ConfigsTab.qml`,
+  `components/SettingsTab.qml`, `replicant.js`,
+  `tests/qml/tst_replicant.qml`, `manifest.json`, `docs/TASKS.md`,
+  `docs/ROADMAP.md`.
+- Commit: this commit.
 
 ### F19. Reveal the owning file in Configs
 

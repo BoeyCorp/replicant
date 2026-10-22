@@ -636,6 +636,32 @@ TestCase {
     compare(flushed[1].value, "top")
   }
 
+  function test_search_sync_emits_only_on_difference() {
+    verify(R.searchSyncShouldEmit("a", ""))
+    verify(!R.searchSyncShouldEmit("a", "a"))
+    verify(R.searchSyncShouldEmit("", "a"))
+    verify(!R.searchSyncShouldEmit("", ""))
+  }
+
+  function test_search_sync_roundtrip_does_not_loop_or_erase() {
+    // User types "a": field differs, emit; panel adopts "a", now in sync.
+    var field = "a", owned = ""
+    verify(R.searchSyncShouldEmit(field, owned))
+    owned = field
+    verify(!R.searchSyncShouldEmit(field, owned))
+    verify(!R.searchSyncNeedsFieldUpdate(field, owned))
+    // Programmatic clear: owned differs, field follows once.
+    owned = ""
+    verify(R.searchSyncNeedsFieldUpdate(field, owned))
+    field = owned
+    verify(!R.searchSyncNeedsFieldUpdate(field, owned))
+    // Chip navigation sets "hypr": field follows, no extra emit.
+    owned = "hypr"
+    verify(R.searchSyncNeedsFieldUpdate(field, owned))
+    field = owned
+    verify(!R.searchSyncShouldEmit(field, owned))
+  }
+
   function test_keyboard_action_matches_the_row_state() {
     compare(R.keyboardActionFor({ sync_state: "incoming" }), "restore")
     compare(R.keyboardActionFor({ sync_state: "missing" }), "restore")

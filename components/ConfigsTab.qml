@@ -32,6 +32,7 @@ Column {
     width: ct.width
     placeholder: "Filter by name or path…   (/)"
     options: panel.filterOptions
+    searchText: panel.fileSearch
     value: panel.stateFilter
     legend: "● unsaved    ↓ to restore    ↑ to push    ◆ saved    ○ default    ⊘ off    · not here    ⚠ locked"
     collapseTip: "Close every open area and row  (c)"

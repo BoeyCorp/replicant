@@ -33,6 +33,7 @@ Column {
     width: st.width
     placeholder: "Filter settings…   (/)"
     options: panel.settingFilterOptions
+    searchText: panel.settingSearch
     value: panel.settingFilter
     legend: "● yours    ○ default    · not here      A change is applied and saved at once."
     collapseTip: "Close every open group  (c)"
