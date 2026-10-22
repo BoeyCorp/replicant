@@ -131,7 +131,7 @@ F02 can resume whenever its disposable environment exists; repeat affected scena
 | Urgent | F09 | Durable incoming config markers | None | Completed |
 | Urgent | F10 | Encrypted incoming-change discovery | F08, F09 | Completed |
 | Urgent | F11 | Save protection for incoming secrets | F10 | Completed |
-| Urgent | F12 | Consistent repository readiness and status | None | Pending |
+| Urgent | F12 | Consistent repository readiness and status | None | Completed |
 | Urgent | F13 | Secret deletion discovery | None | Pending |
 | Urgent | F14 | Secret-only recovery | F12, F13 | Pending |
 | Important | F15 | Independent pending Settings edits | None | Pending |
@@ -330,16 +330,30 @@ F02 can resume whenever its disposable environment exists; repeat affected scena
 
 - Finding and scope: R07; schema validation, clone activation, and status.
 - Tasks:
-  - [ ] Define the distinction between local setup in progress and a ready repository using the existing format.
-  - [ ] Validate every required readiness artifact before clone activation or normal data reads.
-  - [ ] Make status expose invalid or incomplete setup without synthesizing valid entries.
+  - [x] Define the distinction between local setup in progress and a ready repository using the existing format.
+  - [x] Validate every required readiness artifact before clone activation or normal data reads.
+  - [x] Make status expose invalid or incomplete setup without synthesizing valid entries.
 - Dependencies: none.
 - Acceptance: missing recipient/index, corrupt schema, and incomplete staged clones cannot appear ready.
   Fresh setup still follows its valid initialization sequence. Invalid data remains unchanged.
 - Required checks: `tests/test-schema.sh`, `tests/test-format.sh`, `tests/test-bootstrap.sh`,
   `tests/test-state.sh`; compare text, full JSON, brief status, and mutation gates.
 - Estimate and risk: 4–6 hours; preserve the documented single format and intentional bootstrap sequence.
-- State: Pending.
+- State: Completed.
+- Evidence: `require_ready_schema` now requires index/recipient when blobs
+  exist (fresh and config-only repos stay valid); `core_status` returns
+  `initialized:false` for invalid repos in text, full JSON, and brief without
+  synthesized entries and without mutating data; clone rejects staged vaults
+  without an index. `vault_save_entry` caches readiness before writing the
+  blob so the transient blob-without-index state cannot misclassify a valid
+  save. `tests/test-schema.sh` passes 38 checks, `tests/test-format.sh`
+  passes, `tests/test-bootstrap.sh` passes 93 checks, `tests/test-state.sh`
+  passes 119 checks, `tests/test-crypto.sh` passes 129 checks.
+  `manifest.json` 0.42.7 -> 0.42.8.
+- Changed files: `bin/lib/schema.sh`, `bin/lib/status.sh`, `bin/lib/crypto.sh`,
+  `tests/test-schema.sh`, `tests/test-bootstrap.sh`, `tests/test-state.sh`,
+  `manifest.json`, `docs/TASKS.md`, `docs/ROADMAP.md`.
+- Commit: this commit.
 
 ### F13. Discover deleted secrets in history
 
@@ -587,7 +601,7 @@ This update changes only `TASKS.md`, `TASKS-HISTORY.md`, and `ROADMAP.md`.
 
 ## Next action
 
-- Next phase: **F12**, consistent repository readiness and status.
-- Resume command: `$taskflow run F12`.
+- Next phase: **F13**, secret deletion discovery.
+- Resume command: `$taskflow run F13`.
 - Recommended effort: **medium**.
 - F02 remains blocked independently; do not wait for its environment before addressing confirmed data risks.

@@ -387,4 +387,17 @@ cp "$REPO_DIR/config/hypr/looknfeel.lua" "$HOME/.config/hypr/looknfeel.lua" 2>/d
 record_incoming
 check "clearing the record empties the pending set" "" "$(cat "$REPLICANT_HOME/incoming" 2>/dev/null || true)"
 
+section "invalid repositories are not reported as initialized"
+cp "$REPO_DIR/.replicant/schema.json" "$TMP/state-schema.keep"
+printf '{"format":"other"}\n' > "$REPO_DIR/.replicant/schema.json"
+check "a corrupt marker reads as invalid" "invalid" "$(repo_state)"
+check "…with full JSON not initialized" "false" "$(core_status --json --no-fetch 2>/dev/null | jq -r .initialized)"
+check "…and no synthesized entries" "" "$(core_status --json --no-fetch 2>/dev/null | jq -r '.entries // empty | length' 2>/dev/null || true)"
+check "…with brief not initialized" "false" "$(core_status --json --brief --no-fetch 2>/dev/null | jq -r .initialized)"
+check "…and text naming the problem" "1" "$(core_status --no-fetch 2>&1 | head -n1 | grep -c invalid || true)"
+check "…leaving the marker untouched" '{"format":"other"}' "$(cat "$REPO_DIR/.replicant/schema.json" 2>/dev/null)"
+cp "$TMP/state-schema.keep" "$REPO_DIR/.replicant/schema.json"
+check "a repaired marker is ready again" "ready" "$(repo_state)"
+check "…with status initialized" "true" "$(core_status --json --no-fetch 2>/dev/null | jq -r .initialized)"
+
 summary

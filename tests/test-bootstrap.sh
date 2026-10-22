@@ -267,4 +267,23 @@ check_contains "…with a recovery command" "clone" "$out"
 check_false "…leaving no repo directory" test -e "$REPO_DIR"
 check_true "…and no staging directory" no_staging_left
 
+section "clone refuses an incomplete vault"
+incomplete="$TMP/v3incomplete"
+git init -q -b main "$incomplete" 2>/dev/null
+git -C "$incomplete" config user.name Tests 2>/dev/null
+git -C "$incomplete" config user.email tests@example.com 2>/dev/null
+mkdir -p "$incomplete/.replicant/machines" "$incomplete/vault/blobs"
+printf '{"format":"replicant"}\n' > "$incomplete/.replicant/schema.json"
+printf '{}\n' > "$incomplete/.replicant/entries.json"
+printf 'ciphertext\n' > "$incomplete/vault/blobs/0123456789abcdef0123456789abcdef.age"
+: > "$incomplete/.replicant/machines/.keep"
+git -C "$incomplete" add -A 2>/dev/null
+git -C "$incomplete" commit -qm incomplete 2>/dev/null
+rm -rf -- "$REPO_DIR"
+out=$(repo_clone "$incomplete" 2>&1); rc=$?
+check "a staged clone with blobs but no index fails" "1" "$(if (( rc != 0 )); then echo 1; else echo 0; fi)"
+check_contains "…naming the missing vault file" "vault/index.age" "$out"
+check_false "…leaving no repo directory" test -e "$REPO_DIR"
+check_true "…and no staging directory" no_staging_left
+
 summary

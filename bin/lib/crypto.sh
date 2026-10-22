@@ -329,6 +329,11 @@ vault_save_entry() {
   fi
   case "$source" in user|override) ;;
     *) printf 'replicant: secret source is not user or override\n' >&2; return 1 ;; esac
+  # Readiness is decided before any mutation: the blob lands before the index,
+  # so a mid-save check would see blobs without an index and misread a valid
+  # setup as incomplete. Committed states stay covered by require_ready_schema.
+  local ready=0
+  repo_is_ready 2>/dev/null && ready=1
   rec=$(vault_recipient) || return 1
   blobs=$(vault_blobs_dir)
   mkdir -p "$blobs" || return 1
@@ -390,7 +395,7 @@ vault_save_entry() {
       printf 'replicant: secret %s has invalid scope %s\n' "$rel" "$existing_scope" >&2
       return 1 ;;
   esac
-  if repo_is_ready; then
+  if (( ready )); then
     jq -c --arg id "$rel" --arg path "$src" --arg scope "$scope" \
       --arg source "$source" --arg blob "$blob" \
       '.secrets |= (map(select(.id != $id)) + [{id: $id, path: $path, scope: $scope, source: $source, blob: $blob}])' <<<"$idx"

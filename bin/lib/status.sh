@@ -345,6 +345,16 @@ core_status() {
     if (( json )); then echo '{"initialized":false}'; else echo "not initialized: run 'replicant create --push', or 'clone <url>' for a repo you already have"; fi
     return 0
   fi
+  local ready_err=""
+  if ! ready_err=$(require_ready_schema 2>&1); then
+    if (( json )); then
+      echo '{"initialized":false}'
+    else
+      printf 'invalid repository: %s\n' "$(head -n1 <<<"$ready_err")"
+      echo "Fix it or start over: 'replicant create --push', or 'clone <url>' for a repo you already have"
+    fi
+    return 0
+  fi
   # Best-effort refresh of origin/HEAD so unpushed/ahead/behind are accurate.
   # Never blocks when there is no network, and never runs more often than
   # FETCH_MAX_AGE unless explicitly asked.

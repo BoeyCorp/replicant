@@ -104,4 +104,12 @@ mkfifo "$TMP/pipe" 2>/dev/null || true
 printf '{"a": {"path": "%s/pipe", "kind": "config", "scope": "shared", "source": "user"}}' "$TMP" > "$TMP/f.json"
 check_false "a fifo is not a trackable file" validate_entries "$TMP/f.json"
 
+section "vault files are all-or-nothing once secrets exist"
+check "a fresh repo without secrets is ready" "ready" "$(repo_state)"
+printf 'ciphertext\n' > "$REPO_DIR/vault/blobs/0123456789abcdef0123456789abcdef.age"
+check "blobs without an index are invalid" "invalid" "$(repo_state)"
+check_false "…blocking writes" core_backup
+rm -f "$REPO_DIR/vault/blobs/0123456789abcdef0123456789abcdef.age"
+check "removing the stray blob is ready again" "ready" "$(repo_state)"
+
 summary

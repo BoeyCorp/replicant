@@ -76,6 +76,36 @@ require_ready_schema() {
   [[ -d "$REPO_DIR/.replicant/machines" ]] || { echo 'schema: machine records are missing' >&2; return 1; }
   no_plaintext_secrets || return 1
   validate_entries || return 1
+  _vault_files_consistent || return 1
+}
+
+# _vault_files_consistent: the encrypted vault is all-or-nothing once secrets
+# exist. Blobs without an index (or without a recipient) are an incomplete
+# vault, and an index without a recipient names a key nobody can verify.
+# A fresh or config-only repo has none of these files, which stays valid: the
+# bootstrap sequence creates the recipient at key init and the index at the
+# first secret save.
+_vault_files_consistent() {
+  local blobs idx rec has_blob=0
+  blobs=$(vault_blobs_dir 2>/dev/null) || return 1
+  idx=$(vault_index_file 2>/dev/null) || return 1
+  rec=$(vault_recipient_file 2>/dev/null) || return 1
+  local b
+  for b in "$blobs"/*.age; do
+    [[ -f "$b" ]] || continue
+    [[ "$(basename "$b")" == ".keep" ]] && continue
+    has_blob=1; break
+  done
+  if (( has_blob )); then
+    [[ -f "$idx" ]] || { echo 'schema: vault/index.age is missing but blobs exist' >&2; return 1; }
+    [[ -f "$rec" ]] || { echo 'schema: .replicant/recipient.txt is missing but blobs exist' >&2; return 1; }
+    local r
+    r=$(tr -d '[:space:]' < "$rec" 2>/dev/null || true)
+    [[ "$r" == age1* ]] || { echo 'schema: .replicant/recipient.txt is not an age key' >&2; return 1; }
+  elif [[ -f "$idx" ]]; then
+    [[ -f "$rec" ]] || { echo 'schema: .replicant/recipient.txt is missing for vault/index.age' >&2; return 1; }
+  fi
+  return 0
 }
 
 entries_upsert() {

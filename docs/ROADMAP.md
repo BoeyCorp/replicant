@@ -1,10 +1,16 @@
 # Roadmap
 
 The executable plan, dependencies, acceptance criteria, and evidence are in [TASKS.md](TASKS.md).
-F06–F11 are implemented in this checkout; F12 is next.
+F06–F12 are implemented in this checkout; F13 is next.
 
 ## Completed
 
+- F12 enforces vault all-or-nothing readiness, reports invalid repos as not
+  initialized in every status form without synthesizing entries, and rejects
+  incomplete staged clones. Covered in `tests/test-schema.sh` (38 checks),
+  `tests/test-format.sh`, `tests/test-bootstrap.sh` (93 checks),
+  `tests/test-state.sh` (119 checks), and `tests/test-crypto.sh` (129
+  checks). Shipped as 0.42.8.
 - F11 holds back incoming secrets on ordinary saves and lets explicit saves
   overrule: ciphertext preserved, markers kept until copies match, then
   pruned. Covered in `tests/test-crypto.sh` (129 checks),
@@ -80,7 +86,7 @@ F06–F11 are implemented in this checkout; F12 is next.
 4. **Evolution, F26:** optionally add direct Restore section navigation from the F05 proposal.
    Keep the existing four tabs; do not treat this proposal as a required defect correction.
 
-Start with **F12**. F02 can resume independently when its disposable environment is available.
+Start with **F13**. F02 can resume independently when its disposable environment is available.
 Production readiness still requires F02 and the real-runtime evidence in F23.
 No phase authorizes remote publication or changes to the active installation through this plan.
 
