@@ -5,6 +5,7 @@ import Quickshell.Io
 import qs.Commons
 import qs.Commons as Commons
 import qs.Ui
+import "../replicant.js" as R
 
 // The top of the Overview tab: what state this machine is in, in one sentence,
 // the two buttons a person comes for, and the counts behind the sentence.
@@ -85,7 +86,7 @@ BorderSurface {
     Row {
       spacing: Style.space(8)
       Button {
-        visible: panel.nLocked > 0
+        visible: R.keyActionFor(panel.repoState && panel.repoState.encryption ? panel.repoState.encryption.state : "", panel.nLocked) === "create"
         text: "Create encryption key"; iconText: panel.icKey; bordered: true
         foreground: panel.warnColor; accent: Commons.Color.accent; fontFamily: panel.ff
         enabled: panel.ready && !panel.busy
@@ -93,6 +94,18 @@ BorderSurface {
         onClicked: panel.ask("key-init", "",
                              "Create the encryption key for this setup? Export it before you add another machine.",
                              "Create key")
+      }
+      Button {
+        visible: R.keyActionFor(panel.repoState && panel.repoState.encryption ? panel.repoState.encryption.state : "", panel.nLocked) === "import"
+        text: "Import encryption key"; iconText: panel.icKey; bordered: true
+        foreground: panel.warnColor; accent: Commons.Color.accent; fontFamily: panel.ff
+        enabled: panel.ready && !panel.busy
+        tooltipText: "This repo already has encrypted secrets. Import the key from your other machine instead of creating a new one."
+        onClicked: {
+          panel.lastTitle = "Import the encryption key"
+          panel.lastOk = false
+          panel.lastOutput = "This repo already holds encrypted secrets, so creating a new key would orphan them.\n\nCopy your exported key to this machine, then run:\n  replicant key import <source>\n\nNo secret key is ever shown here."
+        }
       }
       Button {
         text: panel.remoteState === "remote-missing" ? "Create private repo" : (panel.remoteState === "ahead" ? "Retry push" : "Save to GitHub"); iconText: panel.icPush; bordered: true

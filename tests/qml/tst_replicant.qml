@@ -690,6 +690,16 @@ TestCase {
     compare(R.ownerFindRow([row], "b"), null)
   }
 
+  function test_key_action_offers_import_for_existing_vault() {
+    compare(R.keyActionFor("locked", 1), "import")
+    compare(R.keyActionFor("locked", 2), "import")
+    compare(R.keyActionFor("ready", 1), "create")
+    compare(R.keyActionFor("unconfigured", 1), "create")
+    compare(R.keyActionFor("locked", 0), "none")
+    compare(R.keyActionFor("ready", 0), "none")
+    compare(R.keyActionFor("", 1), "create")
+  }
+
   function test_keyboard_action_matches_the_row_state() {
     compare(R.keyboardActionFor({ sync_state: "incoming" }), "restore")
     compare(R.keyboardActionFor({ sync_state: "missing" }), "restore")

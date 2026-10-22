@@ -975,3 +975,14 @@ function ownerRevealNeeds(row, search, filter) {
   if (!row) return { clearSearch: false, clearFilter: false, missing: true }
   return { clearSearch: searchBlocksRow(row, search), clearFilter: filterBlocksRow(row, filter), missing: false }
 }
+
+// ── Key action ────────────────────────────────────────────────────────
+// A locked existing vault must offer import, never creation: key init over
+// blobs is refused by the CLI and would orphan secrets. Creation is only
+// for a fresh setup without an existing vault. Corrupt/unready repos are
+// distinct (none here) and never reach the key buttons.
+function keyActionFor(encryptionState, lockedCount) {
+  if (Number(lockedCount || 0) <= 0) return "none"
+  if (String(encryptionState || "") === "locked") return "import"
+  return "create"
+}

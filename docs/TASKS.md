@@ -544,15 +544,28 @@ F02 can resume whenever its disposable environment exists; repeat affected scena
 
 - Finding and scope: R13; locked-vault guidance and `components/StatusCard.qml`.
 - Tasks:
-  - [ ] Distinguish a fresh setup from an existing encrypted vault without its identity.
-  - [ ] Offer creation only for a valid initial setup; offer import guidance for an existing vault.
+  - [x] Distinguish a fresh setup from an existing encrypted vault without its identity.
+  - [x] Offer creation only for a valid initial setup; offer import guidance for an existing vault.
 - Dependencies: F12.
 - Acceptance: a second machine with existing blobs cannot be sent to an impossible key-creation flow.
   Locked and corrupt states remain distinct, and no secret key appears in panel output.
 - Required checks: `tests/test-bootstrap.sh`, `tests/test-crypto.sh`, `tests/test-usability.sh`,
   and the locked G7 fixture.
 - Estimate and risk: 2–4 hours; use existing encryption state instead of inferring state from a counter.
-- State: Pending.
+- State: Completed.
+- Evidence: `StatusCard.qml` uses `R.keyActionFor(encryption.state, nLocked)`:
+  `locked` shows Import with `replicant key import <source>` guidance, other
+  states show Create; corrupt/unready stays on the setup screen and no key
+  material is printed. `replicant.js` adds `keyActionFor` with QML cases for
+  locked/import, fresh/create, and none. `tests/qml-controller.sh` passes 81
+  checks, `tests/test-bootstrap.sh` passes 93 checks,
+  `tests/test-crypto.sh` passes 147 checks, and
+  `tests/test-usability.sh` passes 143 checks. `manifest.json` 0.42.15
+  -> 0.42.16.
+- Changed files: `components/StatusCard.qml`, `replicant.js`,
+  `tests/qml/tst_replicant.qml`, `manifest.json`, `docs/TASKS.md`,
+  `docs/ROADMAP.md`.
+- Commit: this commit.
 
 ### F21. Verify and correct modal keyboard routing
 
