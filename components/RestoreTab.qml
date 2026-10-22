@@ -18,14 +18,56 @@ Column {
   id: rt
   // The panel this belongs to. Every value and every action comes from it.
   property var panel
-  function navigationItem() { return null }
+  function navigationItem(pickedId) {
+    var want = String(pickedId || "")
+    if (want === "") return null
+    var cards = { repo: repoCard, defaults: defaultsCard, deleted: deletedCard,
+                  reinstall: reinstallCard, packages: packagesCard, backups: backupsCard }
+    var item = cards[want] || null
+    return item && item.visible ? item : null
+  }
+  // Single source for which sections show: every card binds its visible to
+  // one flag here, and the picker lists exactly the flags that are set.
+  property var restoreVisibility: ({
+    deleted: panel.deletedLoading || panel.deletedError !== "" || panel.deletedLoaded || panel.deletedList.length > 0,
+    reinstall: panel.pendingReinstalls.length > 0,
+    packages: (panel.pendingPackages.official || []).length + (panel.pendingPackages.aur || []).length > 0,
+    backups: panel.backupsLoading || panel.backupsError !== "" || panel.backupsLoaded || panel.backupRows.length > 0
+  })
+  function sectionItems() { return R.restoreSectionList(rt.restoreVisibility) }
+  function visibleSectionIds() { return rt.sectionItems().map(function(s) { return s.id }) }
   spacing: Style.space(10)
+
+  // Compact section picker: one selection action reaches any visible card,
+  // the next action activates its control. Hidden cards never appear here.
+  Flow {
+    width: parent.width
+    visible: rt.sectionItems().length > 1
+    spacing: Style.space(6)
+    Repeater {
+      model: rt.sectionItems()
+      delegate: Button {
+        required property var modelData
+        text: modelData.title
+        bordered: true
+        fontSize: Style.font.bodySmall
+        horizontalPadding: Style.space(8)
+        verticalPadding: Style.space(3)
+        foreground: panel.openRestoreSection === modelData.id ? Commons.Color.accent : panel.fg
+        fontFamily: panel.ff
+        tooltipText: "Jump to " + modelData.title
+        onClicked: panel.showRestoreSection(modelData.id)
+      }
+    }
+  }
 
   // ── from your repo ──────────────────────────────────────────────────────
   Card {
+    id: repoCard
     panel: rt.panel
     width: rt.width
     icon: panel.icPull
+    keyboardId: "restore-repo"
     title: "From your repo"
     subtitle: "Put back what your repo holds, then apply it"
     statusText: panel.restoreDiffers > 0 ? R.plural(panel.restoreDiffers, "file") + " differ" : "matches"
@@ -108,9 +150,11 @@ Column {
 
   // ── Omarchy's defaults ──────────────────────────────────────────────────
   Card {
+    id: defaultsCard
     panel: rt.panel
     width: rt.width
     icon: panel.icDefault
+    keyboardId: "restore-defaults"
     title: "Omarchy's defaults"
     subtitle: "Throw away your changes to the files Omarchy ships"
     statusText: panel.resetDiffers > 0 ? R.plural(panel.resetDiffers, "file") + " differ" : "at default"
@@ -148,10 +192,12 @@ Column {
   // A copy that left the repo is still in git history: forgotten, untracked,
   // or deleted from a tracked folder. One button undoes one commit's worth.
   Card {
+    id: deletedCard
     panel: rt.panel
     width: rt.width
-    visible: panel.deletedLoading || panel.deletedError !== "" || panel.deletedLoaded || panel.deletedList.length > 0
+    visible: rt.restoreVisibility.deleted
     icon: panel.icRecover
+    keyboardId: "restore-deleted"
     title: "Deleted from your repo"
     subtitle: "Git history kept these copies"
     countText: String(panel.deletedList.length)
@@ -212,10 +258,12 @@ Column {
   // Recorded in the inventory, not installed here. Restoring never fetches
   // someone else's current code on its own: one Install button each.
   Card {
+    id: reinstallCard
     panel: rt.panel
     width: rt.width
-    visible: panel.pendingReinstalls.length > 0
+    visible: rt.restoreVisibility.reinstall
     icon: panel.icPlugin
+    keyboardId: "restore-reinstall"
     title: "Plugins and themes to install"
     subtitle: "In your inventory, and not on this machine"
     countText: String(panel.pendingReinstalls.length)
@@ -252,10 +300,12 @@ Column {
   // separately, one Install button each. Nothing here ever removes, and the
   // base and ignored sets never appear.
   Card {
+    id: packagesCard
     panel: rt.panel
     width: rt.width
-    visible: (panel.pendingPackages.official || []).length + (panel.pendingPackages.aur || []).length > 0
+    visible: rt.restoreVisibility.packages
     icon: panel.icPlugin
+    keyboardId: "restore-packages"
     title: "Packages to install"
     subtitle: "On " + String(panel.pendingPackages.source || "another machine") + ", and not on this machine"
     countText: String((panel.pendingPackages.official || []).length + (panel.pendingPackages.aur || []).length)
@@ -311,10 +361,12 @@ Column {
   // promise is collected on: the bottom of the tab, where a person stands
   // when a restore went wrong.
   Card {
+    id: backupsCard
     panel: rt.panel
     width: rt.width
-    visible: panel.backupsLoading || panel.backupsError !== "" || panel.backupsLoaded || panel.backupRows.length > 0
+    visible: rt.restoreVisibility.backups
     icon: panel.icHistory
+    keyboardId: "restore-backups"
     title: "Undo a restore"
     subtitle: "The version that each write replaced"
     countText: String(panel.backupRows.length)

@@ -710,6 +710,25 @@ TestCase {
     verify(R.modalBlocksBackground(false, true, true, false, false))
   }
 
+  function test_restore_picker_lists_exactly_the_visible_sections() {
+    var all = R.restoreSectionList({ deleted: true, reinstall: true, packages: true, backups: true })
+    compare(all.map(function(s) { return s.id }).join(","), "repo,defaults,deleted,reinstall,packages,backups")
+    var some = R.restoreSectionList({ deleted: true, reinstall: false, packages: false, backups: true })
+    compare(some.map(function(s) { return s.id }).join(","), "repo,defaults,deleted,backups")
+    var minimal = R.restoreSectionList({})
+    compare(minimal.map(function(s) { return s.id }).join(","), "repo,defaults")
+  }
+
+  function test_restore_sections_join_the_keyboard_order() {
+    var items = R.focusItems("restore", [], [], [], [{ id: "repo" }, { id: "backups" }])
+    compare(items.length, 6)
+    compare(items[4].kind, "restore-section")
+    compare(items[4].id, "repo")
+    compare(items[5].id, "backups")
+    var other = R.focusItems("configs", [], [], [])
+    verify(other.every(function(i) { return i.kind !== "restore-section" }))
+  }
+
   function test_keyboard_action_matches_the_row_state() {
     compare(R.keyboardActionFor({ sync_state: "incoming" }), "restore")
     compare(R.keyboardActionFor({ sync_state: "missing" }), "restore")

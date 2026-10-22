@@ -93,7 +93,8 @@ Panel {
   // is never required to reach a control in a long panel.
   property int keyboardFocusIndex: 0
   readonly property var keyboardFocusItems: R.focusItems(root.activeTab, root.categoryCards,
-                                                         root.visibleConfigRows, root.settingGroups)
+                                                         root.visibleConfigRows, root.settingGroups,
+                                                         restoreTab.visibleSectionIds())
   readonly property var keyboardFocus: root.keyboardFocusItems.length > 0
       ? root.keyboardFocusItems[Math.max(0, Math.min(root.keyboardFocusIndex,
                                                      root.keyboardFocusItems.length - 1))]
@@ -131,6 +132,7 @@ Panel {
       return
     }
     if (target.kind === "action") return
+    if (target.kind === "restore-section") { root.showRestoreSection(target.id); return }
     if (target.kind !== "row") return
     var row = root.visibleConfigRows.filter(function(item) { return item.id === target.id })[0]
     if (!row) return
@@ -152,6 +154,7 @@ Panel {
       return
     }
     if (target.kind === "card") { root.toggleCard(target.id); return }
+    if (target.kind === "restore-section") { root.showRestoreSection(target.id); return }
     if (target.kind === "action") {
       var actionRow = root.visibleConfigRows.filter(function(item) { return item.id === target.id })[0]
       if (!actionRow) return
@@ -216,6 +219,7 @@ Panel {
   // One file row is open at a time. Two open rows are two sets of buttons
   // that look alike, one above the other.
   property string openRow: ""
+  property string openRestoreSection: ""
   function isRowOpen(id) { return root.openRow === id }
   function toggleRow(id) { root.openRow = root.openRow === id ? "" : id }
 
@@ -249,6 +253,7 @@ Panel {
     if (root.activeTab === "overview") return overviewTab.navigationItem(root.openCommits)
     if (root.activeTab === "configs") return configsTab.navigationItem(root.openRow, root.openCards)
     if (root.activeTab === "settings") return settingsTab.navigationItem(root.openCards)
+    if (root.activeTab === "restore") return restoreTab.navigationItem(root.openRestoreSection)
     return restoreTab.navigationItem()
   }
 
@@ -1011,6 +1016,36 @@ Panel {
       var items = root.keyboardFocusItems || []
       for (var i = 0; i < items.length; i++) {
         if (items[i].kind === "row" && String(items[i].id) === String(id)) {
+          root.keyboardFocusIndex = i
+          break
+        }
+      }
+    })
+    return true
+  }
+
+  // Jump to one visible Restore section from the picker (or the keyboard).
+  // Unknown ids report explicitly and change nothing; picking never hides
+  // other cards, it only scrolls the chosen one into view and focuses it.
+  function showRestoreSection(id) {
+    var ids = restoreTab.visibleSectionIds()
+    if (!id || ids.indexOf(String(id)) < 0) {
+      root.lastTitle = "Restore section"
+      root.lastOk = false
+      root.lastOutput = "No visible Restore section owns '" + id + "'."
+      return false
+    }
+    root.activeTab = "restore"
+    root.openRestoreSection = String(id)
+    Qt.callLater(function() {
+      var item = restoreTab.navigationItem(root.openRestoreSection)
+      if (item && body) {
+        var point = item.mapToItem(body, 0, 0)
+        if (point) body.contentY = Math.max(0, Math.min(point.y - 80, body.contentHeight - body.height))
+      }
+      var items = root.keyboardFocusItems || []
+      for (var i = 0; i < items.length; i++) {
+        if (items[i].kind === "restore-section" && String(items[i].id) === String(id)) {
           root.keyboardFocusIndex = i
           break
         }

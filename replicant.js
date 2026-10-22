@@ -411,9 +411,14 @@ function navigationScroll(snapshot, tab, maximum) {
 // Build the logical order used by the panel's keyboard cursor. The visual
 // controls remain ordinary QML controls, but their order is stable and can be
 // tested without a running shell.
-function focusItems(tab, cards, rows, settings) {
+function focusItems(tab, cards, rows, settings, restoreSections) {
   var out = [{ kind: "tab", id: "overview" }, { kind: "tab", id: "configs" },
              { kind: "tab", id: "settings" }, { kind: "tab", id: "restore" }]
+  if (tab === "restore") {
+    (restoreSections || []).forEach(function(s) {
+      out.push({ kind: "restore-section", id: String(s.id || s) })
+    })
+  }
   if (tab === "configs") {
     out.push({ kind: "filter", id: "configs-search" }, { kind: "filter", id: "configs-state" });
     (cards || []).forEach(function(card) {
@@ -996,4 +1001,21 @@ function keyActionFor(encryptionState, lockedCount) {
 // closeTransient like cancel does.
 function modalBlocksBackground(viewerOpen, confirmOpen, createOpen, cloneOpen, helpOpen) {
   return !!(viewerOpen || confirmOpen || createOpen || cloneOpen || helpOpen)
+}
+
+// ── Restore section picker ────────────────────────────────────────────
+// The Restore tab stacks up to six cards; reaching the last one costs a
+// scroll past every earlier card. The picker lists exactly the visible
+// sections (single source: the cards' own visibility flags), so one
+// selection action reaches any of them and the next action activates its
+// control. No new top-level tab, no duplicated business logic.
+function restoreSectionList(v) {
+  var flags = v || {}
+  var out = [{ id: "repo", title: "From your repo" },
+             { id: "defaults", title: "Omarchy's defaults" }]
+  if (flags.deleted) out.push({ id: "deleted", title: "Deleted from your repo" })
+  if (flags.reinstall) out.push({ id: "reinstall", title: "Plugins and themes to install" })
+  if (flags.packages) out.push({ id: "packages", title: "Packages to install" })
+  if (flags.backups) out.push({ id: "backups", title: "Undo a restore" })
+  return out
 }
