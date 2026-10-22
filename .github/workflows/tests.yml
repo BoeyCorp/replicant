@@ -34,3 +34,26 @@ jobs:
         run: docker build -f tests/Dockerfile -t replicant-tests .
       - name: Run every suite
         run: docker run --rm replicant-tests
+  # Required real-Omarchy validation on a disposable graphical session.
+  # Disposable-runner contract (never the active installation or the private
+  # data repo): a fresh Omarchy session separate from daily use, with the
+  # plugin installed from file://, exercised through install, enable, shell
+  # restart, and removal, plus real mouse/keyboard over Settings and the
+  # confirmation dialog (F02, F21). Release readiness needs this job green;
+  # container runs report it as skipped and never stand in for it (F23).
+  real-desktop:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Real desktop validation (disposable session required)
+        run: |
+          if command -v omarchy >/dev/null 2>&1; then
+            omarchy plugin validate .
+            LINT=$(command -v qmllint-qt6 || command -v qmllint)
+            "$LINT" -I /usr/share/omarchy/shell ./*.qml ./components/*.qml
+            echo "real-desktop: Omarchy validation ran"
+          else
+            echo "SKIPPED: no Omarchy session here — run this job on a disposable graphical session per F02/F23"
+          fi

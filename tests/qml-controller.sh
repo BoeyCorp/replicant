@@ -28,7 +28,7 @@ if grep -q 'console\.log' "$CONTROLLER"; then bad "console.log left in controlle
 QMLTEST="$(command -v qmltestrunner6 || true)"
 [[ -z "$QMLTEST" && -x /usr/lib/qt6/bin/qmltestrunner ]] && QMLTEST=/usr/lib/qt6/bin/qmltestrunner
 if [[ -z "$QMLTEST" ]]; then
-  echo "qmltestrunner (Qt 6) is not installed, static checks only"
+  echo "SKIPPED: qmltestrunner (Qt 6) is not installed, static checks only — no executable QML run"
   (( failed == 0 )) && exit 0 || exit 1
 fi
 if out=$(env -u QT_QPA_PLATFORMTHEME QT_QPA_PLATFORM=offscreen "$QMLTEST" -import "$HERE/qml/mock" -input "$ROOT/tests/qml" 2>&1); then

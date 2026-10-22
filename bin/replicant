@@ -66,7 +66,7 @@ progress_cli_cancel() {
 # machine called "omarchy", the distribution's default hostname, would get the
 # name of this plugin's own repo, so it takes $USER instead.
 _replicant_host=$(replicant_machine); _replicant_host="${_replicant_host%%.*}"
-if [[ "$_replicant_host-replicant" == "replicant" ]]; then
+if [[ -z "$_replicant_host" || "$_replicant_host" == "omarchy" ]]; then
   DEFAULT_REPO_NAME="${USER:-user}-replicant"
 else
   DEFAULT_REPO_NAME="$_replicant_host-replicant"

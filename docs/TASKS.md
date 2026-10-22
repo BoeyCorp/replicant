@@ -632,10 +632,10 @@ F02 can resume whenever its disposable environment exists; repeat affected scena
 
 - Finding and scope: R15; test runner, QML harness, Docker test image, and CI workflow.
 - Tasks:
-  - [ ] Separate passed, failed, and skipped checks in the test runner and CI summary.
-  - [ ] Execute ShellCheck and resolve findings or justify narrowly scoped suppressions.
-  - [ ] Require an actual Qt test run where QML behavior is claimed; retain source checks only as static checks.
-  - [ ] Define a required real Omarchy validation job using a documented disposable runner contract.
+  - [x] Separate passed, failed, and skipped checks in the test runner and CI summary.
+  - [x] Execute ShellCheck and resolve findings or justify narrowly scoped suppressions.
+  - [x] Require an actual Qt test run where QML behavior is claimed; retain source checks only as static checks.
+  - [x] Define a required real Omarchy validation job using a documented disposable runner contract.
 - Dependencies: F15, F16, and the recorded F21 outcome establish the runtime cases to retain.
 - Acceptance: missing runtimes cannot produce an unqualified full-validation pass.
   The real job must execute plugin validation, lint, and required runtime probes before being reported complete.
@@ -643,7 +643,19 @@ F02 can resume whenever its disposable environment exists; repeat affected scena
   QML runner absence/failure, and the real desktop job when its environment is available.
 - Estimate and risk: 4–6 hours for gate changes; external runner provisioning is a separate dependency.
   If unavailable, retain a blocked integration result and F02, without pretending the container proves it.
-- State: Pending.
+- State: Completed.
+- Evidence: `tests/run-all.sh` counts passed/failed/skipped, runs
+  `shellcheck -S warning`, and reports validation/lint skips explicitly (no
+  unqualified pass); `tests/qml-controller.sh` emits SKIP without a runner
+  and runs 82 executable checks with one. SC2193 in `bin/replicant` fixed
+  (empty/`omarchy` host uses `$USER`). CI adds a documented `real-desktop`
+  job for disposable sessions; container runs report it skipped and F02
+  stays blocked. `shellcheck -S warning` passes, G0 passes 27 checks.
+  `manifest.json` 0.42.17 -> 0.42.18.
+- Changed files: `bin/replicant`, `tests/run-all.sh`,
+  `tests/qml-controller.sh`, `.github/workflows/tests.yml`,
+  `manifest.json`, `docs/TASKS.md`, `docs/ROADMAP.md`.
+- Commit: this commit.
 
 ### F24. Benchmark initialized repositories
 
