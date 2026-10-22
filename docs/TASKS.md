@@ -571,16 +571,30 @@ F02 can resume whenever its disposable environment exists; repeat affected scena
 
 - Finding and scope: R10; panel key routing and the installed confirmation dialog interface.
 - Tasks:
-  - [ ] Send real key events to a focused confirmation dialog and record the affected route.
-  - [ ] If the defect reproduces, give the modal exclusive navigation and activation handling.
-  - [ ] Verify cancel, confirm, background isolation, and focus restoration for relevant overlays.
+  - [x] Send real key events to a focused confirmation dialog and record the affected route.
+  - [x] If the defect reproduces, give the modal exclusive navigation and activation handling.
+  - [x] Verify cancel, confirm, background isolation, and focus restoration for relevant overlays.
 - Dependencies: none.
 - Acceptance: arrows, Enter, and Escape affect only the active dialog.
   If the full route is correct, record that result and narrow or close the hypothesis without speculative changes.
 - Required checks: executable QML key-event tests with the actual dialog contract;
   retain a real desktop keyboard check in F02.
 - Estimate and risk: 3–5 hours; the prior signal probe alone does not prove physical-key behavior.
-- State: Verification first. Runtime availability can block the remaining evidence, not unrelated phases.
+- State: Completed (code fix verified; physical-key route remains in F02).
+- Evidence: code inspection reproduced the defect: `onMoveRequested`,
+  `onActivateRequested`, and `Keys.onPressed` acted on background rows/cards
+  while `confirmDialog` (or viewer/create/clone/help) was open, and
+  `runConfirmed` bypassed `closeTransient` so confirm lost focus
+  restoration while cancel restored it. `R.modalBlocksBackground` now gates
+  move/activate/keys, and confirm closes through `closeTransient`. QML cases
+  cover every overlay. `tests/qml-controller.sh` passes 82 checks,
+  `tests/test-usability.sh` passes 143 checks, `qmllint` and
+  `omarchy plugin validate` pass. Physical-key proof with the installed
+  dialog stays in F02. `manifest.json` 0.42.16 -> 0.42.17.
+- Changed files: `Panel.qml`, `replicant.js`,
+  `tests/qml/tst_replicant.qml`, `manifest.json`, `docs/TASKS.md`,
+  `docs/ROADMAP.md`.
+- Commit: this commit.
 
 ### F22. Align setup and command documentation
 

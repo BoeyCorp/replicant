@@ -700,6 +700,16 @@ TestCase {
     compare(R.keyActionFor("", 1), "create")
   }
 
+  function test_modal_blocks_background_for_every_overlay() {
+    verify(!R.modalBlocksBackground(false, false, false, false, false))
+    verify(R.modalBlocksBackground(false, true, false, false, false))
+    verify(R.modalBlocksBackground(true, false, false, false, false))
+    verify(R.modalBlocksBackground(false, false, true, false, false))
+    verify(R.modalBlocksBackground(false, false, false, true, false))
+    verify(R.modalBlocksBackground(false, false, false, false, true))
+    verify(R.modalBlocksBackground(false, true, true, false, false))
+  }
+
   function test_keyboard_action_matches_the_row_state() {
     compare(R.keyboardActionFor({ sync_state: "incoming" }), "restore")
     compare(R.keyboardActionFor({ sync_state: "missing" }), "restore")

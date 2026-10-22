@@ -986,3 +986,14 @@ function keyActionFor(encryptionState, lockedCount) {
   if (String(encryptionState || "") === "locked") return "import"
   return "create"
 }
+
+// ── Modal keyboard routing ────────────────────────────────────────────
+// While a dialog, viewer, or help overlay is open, arrows, Enter, and Escape
+// belong to the modal: the background list must not move or activate.
+// Close (Escape) is handled by the overlay closer; text, move, and activate
+// handlers return early. Focus restoration is handled by the transient
+// snapshot (openTransient/closeTransient), so confirm must close through
+// closeTransient like cancel does.
+function modalBlocksBackground(viewerOpen, confirmOpen, createOpen, cloneOpen, helpOpen) {
+  return !!(viewerOpen || confirmOpen || createOpen || cloneOpen || helpOpen)
+}

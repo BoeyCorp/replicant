@@ -1,10 +1,11 @@
 # Roadmap
 
 The executable plan, dependencies, acceptance criteria, and evidence are in [TASKS.md](TASKS.md).
-F06–F20 are implemented in this checkout; F21 is next.
+F06–F21 are implemented in this checkout (F21 code fix verified; physical-key proof remains in F02); F22 is next.
 
 ## Completed
 
+- F21 isolates modal keyboard routing and restores focus through `closeTransient` on confirm. Covered in `tests/qml-controller.sh` (82 checks). Physical-key proof remains in F02. Shipped as 0.42.17.
 - F20 offers import for a locked existing vault and creation only for a fresh setup. Covered in `tests/qml-controller.sh` (81 checks), `tests/test-bootstrap.sh` (93 checks), and `tests/test-usability.sh` (143 checks). Shipped as 0.42.16.
 - F19 reveals the owning file by clearing only blocking filters, opening its category, scrolling, and focusing the row. Covered in `tests/qml-controller.sh` (80 checks) and `tests/test-usability.sh` (143 checks). Shipped as 0.42.15.
 - F18 keeps visible search text synchronized through one owned-state contract with guarded field updates. Covered in `tests/qml-controller.sh` (77 checks) and `tests/test-usability.sh` (143 checks). Shipped as 0.42.14.

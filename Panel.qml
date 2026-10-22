@@ -1295,7 +1295,7 @@ Panel {
     var a = root.confirmAction, arg = root.confirmArg
     root.confirmAction = ""; root.confirmArg = ""
     confirmDialog.opened = false
-    root.transientView = ""
+    root.closeTransient()""
     var command = null, label = "Restore"
     if (a === "reset-file")        { root.busyLabel = "Resetting " + arg + "…"; command = [root.cli, "reset", arg]; label = "Reset" }
     else if (a === "restore-file") { root.busyLabel = "Restoring " + arg + "…"; command = [root.cli, "restore-file", arg] }
@@ -1661,6 +1661,7 @@ Panel {
       anchors.fill: parent
       blocked: root.focusedField !== null
       Keys.onPressed: function(event) {
+        if (R.modalBlocksBackground(root.viewerOpen, confirmDialog.opened, root.createDialogOpen, root.cloneDialogOpen, root.keyboardHelpOpen)) return
         if (!root.focusedField && root.manageMode && root.activeTab === "configs"
             && event.key === Qt.Key_A && (event.modifiers & Qt.ControlModifier)) {
           root.selectVisible(); event.accepted = true
@@ -1717,10 +1718,12 @@ Panel {
         }
       }
       onMoveRequested: function(dx, dy) {
+        if (R.modalBlocksBackground(root.viewerOpen, confirmDialog.opened, root.createDialogOpen, root.cloneDialogOpen, root.keyboardHelpOpen)) return
         if (root.manageMode) root.moveManageCursor(dy)
         else root.moveKeyboardCursor(dy !== 0 ? dy : dx)
       }
       onActivateRequested: {
+        if (R.modalBlocksBackground(root.viewerOpen, confirmDialog.opened, root.createDialogOpen, root.cloneDialogOpen, root.keyboardHelpOpen)) return
         if (root.manageMode && root.activeTab === "configs" && root.visibleConfigRows.length > 0)
           root.toggleSelected(root.visibleConfigRows[root.manageCursor].id, false)
         else root.activateKeyboardCursor()
