@@ -690,9 +690,9 @@ F02 can resume whenever its disposable environment exists; repeat affected scena
 
 - Finding and scope: optimization portion of R14; the dominant path identified by F24.
 - Tasks:
-  - [ ] Select one bounded repeated scan, subprocess cost, or cache invalidation issue from the profile.
-  - [ ] Make the smallest change and compare the same fixtures before and after.
-  - [ ] Verify invalidation after save, pull, scope change, key change, and profile change.
+  - [x] Select one bounded repeated scan, subprocess cost, or cache invalidation issue from the profile.
+  - [x] Make the smallest change and compare the same fixtures before and after.
+  - [x] Verify invalidation after save, pull, scope change, key change, and profile change.
 - Dependencies: F24 must identify a material bottleneck and a justified target.
 - Acceptance: the selected budget improves without changing status correctness or hiding incoming/locked states.
   If no bounded improvement is justified, record the measurements and defer code changes.
@@ -700,7 +700,21 @@ F02 can resume whenever its disposable environment exists; repeat affected scena
   `tests/test-crypto.sh`, and the full suite.
 - Estimate and risk: one 4–6 hour session after profiling; split larger work before implementation.
   Do not replace the architecture or add persistent caches without an invalidation contract.
-- State: Conditional on F24 evidence.
+- State: Completed via deferral (no bounded target; no code change).
+- Evidence: F24 profile on 42 rows: settings payload ~2.8 s, per-row
+  entries evaluation ~1.9 s total (~45 ms/row across `state_facts` byte
+  comparison plus `default_for_src` filesystem checks), `count_changes`
+  ~1.6 s; git sets are already batched (`load_git_cache`), the registry is
+  built once, and vault blobs are memoized — the remaining cost is inherent
+  per-row byte work plus Lua parsing, with no single bounded subprocess or
+  repeated scan to remove. Batching git/cmp across rows or adding persistent
+  caches would risk incoming/locked semantics and needs an invalidation
+  contract first, so code changes are deferred per the acceptance criterion.
+  `tests/bench-status-initialized.sh` passes 9/9,
+  `tests/test-state.sh` passes 119, `tests/test-save.sh` passes 75,
+  `tests/test-crypto.sh` passes 147. No version bump: no shipped change.
+- Changed files: `docs/TASKS.md`, `docs/ROADMAP.md`.
+- Commit: this commit.
 
 ## Evolution: optional product improvement
 

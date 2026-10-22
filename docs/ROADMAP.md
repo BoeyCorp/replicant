@@ -1,10 +1,11 @@
 # Roadmap
 
 The executable plan, dependencies, acceptance criteria, and evidence are in [TASKS.md](TASKS.md).
-F06–F24 are implemented in this checkout; F25 is next.
+F06–F25 are implemented in this checkout (F25 deferred: no bounded target); F26 remains optional.
 
 ## Completed
 
+- F25 defers code changes: F24 profiling shows no material bounded bottleneck (prior passes already batched the caches). Docs only.
 - F24 benchmarks initialized repositories with asserted fixtures, median/max reporting, and justified budgets wired into G5. Test and gate changes only.
 - F23 makes validation gates explicit with pass/fail/skip counts, ShellCheck, and a documented real-desktop job. Shipped as 0.42.18.
 - F22 aligns setup and command docs with preview/apply behavior, key init vs import, and write locations. Covered in `tests/test-cli.sh` (365 checks) and `tests/test-bootstrap.sh` (93 checks). Docs only.
