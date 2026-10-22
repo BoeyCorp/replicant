@@ -731,7 +731,23 @@ F02 can resume whenever its disposable environment exists; repeat affected scena
 - Required checks: `tests/test-usability.sh`, QML keyboard interactions, G7 navigation/screenshots,
   and human review in a disposable session.
 - Estimate and risk: 3–5 hours plus human review; this is a proposed UX improvement, not a proven data defect.
-- State: Optional proposal. Do not include automatically when executing the confirmed correction plan.
+- State: Completed (explicitly selected 2026-10-22; disposable-session human review remains open in F02).
+- Evidence: `RestoreTab` gains a compact picker over exactly the visible
+  sections (single source: each card binds `visible` to one
+  `restoreVisibility` flag; `R.restoreSectionList` lists them) plus
+  `navigationItem(picked)`; `Panel.showRestoreSection` scrolls via the
+  existing navigation anchor and moves `keyboardFocusIndex`, and
+  `restore-section` joins `R.focusItems` with move/activate handling that
+  never touches background rows. Offscreen captures reviewed: six-button
+  picker renders; `showRestoreSection("packages")` scrolls the card into
+  view with its Install action. `tests/qml-controller.sh` passes 84 checks
+  (new picker/order cases), `tests/test-g7-navigation.sh` passes 37,
+  `tests/test-usability.sh` passes 143, all 8 G7 screenshots match, and
+  `qmllint` passes. `manifest.json` 0.42.19 -> 0.43.0.
+- Changed files: `components/RestoreTab.qml`, `Panel.qml`, `replicant.js`,
+  `tests/qml/tst_replicant.qml`, `manifest.json`, `docs/TASKS.md`,
+  `docs/ROADMAP.md`.
+- Commit: this commit.
 
 ## Product direction and completion criteria
 
