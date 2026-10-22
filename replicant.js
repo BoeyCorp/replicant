@@ -434,7 +434,7 @@ function focusItems(tab, cards, rows, settings, restoreSections) {
     out.push({ kind: "filter", id: "settings-search" }, { kind: "filter", id: "settings-state" })
     ;(settings || []).forEach(function(group) {
       out.push({ kind: "card", id: String(group.id) })
-      ;(group.rows || []).forEach(function(row) {
+      ;(group.rows || group.items || []).forEach(function(row) {
         out.push({ kind: "row", id: String(row.id) })
       })
     })

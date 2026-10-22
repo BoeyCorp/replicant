@@ -696,7 +696,10 @@ vault_restore_entry() {
   fi
   _vault_drop_restore_plain
   apply=$(apply_for_category "$(category_for_rel "$rel")")
-  [[ -n "$apply" ]] && bash -c "$apply" >/dev/null 2>&1 || true
+  if [[ -n "$apply" ]] && ! bash -c "$apply" >/dev/null 2>&1; then
+    printf 'replicant: %s restored but '\''%s'\'' failed — run it yourself or retry restore\n' "$rel" "$apply" >&2
+    return 1
+  fi
   return 0
 }
 # vault_restore_entry_privileged <rel> <dst> <blobfile>: the outside-$HOME
@@ -765,7 +768,10 @@ vault_restore_entry_privileged() {
     return 1
   fi
   apply=$(apply_for_category "$(category_for_rel "$rel")")
-  [[ -n "$apply" ]] && bash -c "$apply" >/dev/null 2>&1 || true
+  if [[ -n "$apply" ]] && ! bash -c "$apply" >/dev/null 2>&1; then
+    printf 'replicant: privileged restore of %s applied files but '\''%s'\'' failed — run it yourself or retry restore\n' "$rel" "$apply" >&2
+    return 1
+  fi
   return 0
 }
 

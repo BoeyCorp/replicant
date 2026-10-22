@@ -159,7 +159,7 @@ Item {
         panel: frow.panel
         anchors.verticalCenter: parent.verticalCenter
         visible: frow.isModified || frow.isIncoming
-        text: frow.isIncoming ? "Restore" : "Save"
+        text: frow.isIncoming ? "Restore file" : "Save file"
         iconText: frow.isIncoming ? panel.icFromRepo : panel.icSave
         foreground: frow.isIncoming ? panel.warnColor : Commons.Color.accent
         enabled: !panel.busy

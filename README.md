@@ -284,8 +284,8 @@ Preview-first commands print their plan and write only with `--apply` (dry run b
 
 Immediate commands write at once through a transaction, backup, or explicit consent (no `--apply`):
 `set`, `save`, `save-file`, `scope`, `policy`, `bulk` (with `--yes`), `track`/`untrack`/`forget`,
-`restore-file`, `reset`, `key init`/`import`/`rotate`, and `install-theme`/`install-plugin`
-(with revision consent). A restore that copies files but cannot apply them (failed
+`restore-file`, `reset`, `key init`/`import`/`rotate`, `install-theme` (fetches at once; panel asks first)
+and `install-plugin` (needs `--revision <sha> --yes`; panel asks first and shows marketplace checks). A restore that copies files but cannot apply them (failed
 `hyprctl reload` or config errors) fails loudly: the files and their `.bak.<epoch>` backups
 remain, and the message names the apply to run yourself.
 

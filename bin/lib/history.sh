@@ -279,6 +279,7 @@ core_recover() {
     skip "dry-run: nothing was touched. Repeat with --apply"; return 0
   fi
   require_ready_schema || return 1
+  tx_require_clean "recover" || return 1
 
   # The row in entries.json and the vault secret come back too, or the next
   # save prunes the copy again.

@@ -103,8 +103,7 @@ Column {
         tooltipText: panel.busy ? "Disabled: another Replicant operation is running." : "Write every area back from your repo, and run what each area needs"
         onClicked: panel.ask("restore-all", "",
           "Restore EVERYTHING from your GitHub repo onto this machine?\n\n"
-          + (panel.restoreDiffers > 0 ? R.plural(panel.restoreDiffers, "file") + " differ from your repo. " : "")
-          + "Every file it overwrites is backed up as .bak.<epoch> first.",
+          + (panel.restoreDiffers > 0 ? R.plural(panel.restoreDiffers, "file") + " differ from your repo. Every file it overwrites is backed up as .bak.<epoch> first." : "Everything already matches your repo. This will write nothing."),
           "Restore")
       }
     }
@@ -135,7 +134,7 @@ Column {
           panel: rt.panel
           anchors.verticalCenter: parent.verticalCenter
           visible: areaRow.modelData.differ > 0
-          text: "Restore"; iconText: panel.icFromRepo
+          text: "Restore area"; iconText: panel.icFromRepo
           foreground: panel.warnColor
           enabled: !panel.busy
           tooltipText: areaRow.modelData.method

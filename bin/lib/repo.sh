@@ -181,11 +181,18 @@ _repo_create_push() {
 
 repo_push() {
   [[ -e "$REPO_DIR/.git" ]] || { echo "no repo — clone first" >&2; return 1; }
-  local remote branch ahead err
+  local remote branch ahead err slug=""
   remote=$(git -C "$REPO_DIR" remote get-url origin 2>/dev/null || true)
   if [[ -z "$remote" ]]; then
     echo "nothing to push — there is no remote yet: run 'replicant create --push'" >&2
     return 0
+  fi
+  case "$remote" in
+    https://github.com/*) slug="${remote#https://github.com/}"; slug="${slug%.git}" ;;
+    git@github.com:*) slug="${remote#git@github.com:}"; slug="${slug%.git}" ;;
+  esac
+  if [[ -n "$slug" ]]; then
+    repo_verify_private "$slug" || return 1
   fi
   branch=$(git -C "$REPO_DIR" rev-parse --abbrev-ref HEAD 2>/dev/null || echo main)
   if ! git -C "$REPO_DIR" rev-parse --abbrev-ref '@{u}' >/dev/null 2>&1; then

@@ -426,6 +426,9 @@ cmd_save_setting() {
     printf '%s\n%s\nRetry: %s\n' "$warn_msg" "$warn_detail" "$warn_recovery" >&2
     return 0
   fi
+  if is_incoming_rel "$owner" 2>/dev/null; then
+    printf 'replicant: warning — %s has a newer copy from another machine (incoming). Saving now overwrites it. Restore first, or repeat to confirm overwrite.\n' "$owner" >&2
+  fi
   save_args=(--id "$owner")
   cmd_save "${save_args[@]}" -m "$subject" || rc=$?
   (( rc == 0 )) && return 0

@@ -570,7 +570,7 @@ Panel {
   }
   function chipClicked(id) {
     if (id === "pull") { root.doPull(); return }
-    if (id === "push") { root.doSave(); return }
+    if (id === "push") { if (root.nAhead > 0 && root.nDirty === 0) { root.doRetryPush(); } else { root.doSave(); } return }
     root.activeTab = "configs"
     if (id === "add") {
       root.stateFilter = "all"
@@ -801,7 +801,7 @@ Panel {
   }
   function cloneRepo() {
     var url = root.cloneRepoUrl.trim()
-    if (url === "") return
+    if (!(url.indexOf("https://") === 0 || url.indexOf("git@") === 0)) return
     root.cloneDialogOpen = false
     root.transientView = ""
     root.busyLabel = "Connecting to your private repo…"
@@ -1779,7 +1779,7 @@ Panel {
         BorderSurface {
           width: parent.width
           visible: root.advice !== "" && root.activeTab !== "overview"
-          implicitHeight: Style.space(30)
+          implicitHeight: root.advice.length > 90 ? Style.space(44) : Style.space(30)
           radius: Style.cornerRadius
           color: Qt.rgba(Commons.Color.accent.r, Commons.Color.accent.g, Commons.Color.accent.b, 0.10)
           borderSpec: Border.controlSpec("focus", root.fg, Commons.Color.accent)
@@ -1792,6 +1792,8 @@ Panel {
             color: Commons.Color.accent
             font.family: root.ff
             font.pixelSize: Style.font.caption
+            wrapMode: Text.WordWrap
+            maximumLineCount: 2
             elide: Text.ElideRight
           }
         }
@@ -2071,13 +2073,13 @@ Panel {
           }
           Text {
             width: parent.width
-            text: "Paste the GitHub URL for the private repo you already created."
+            text: "Paste the GitHub URL for the private repo you already created (HTTPS or SSH)."
             color: root.dim; font.family: root.ff; font.pixelSize: Style.font.caption; wrapMode: Text.WordWrap
           }
           TextField {
             id: cloneUrlField
             width: parent.width
-            placeholderText: "https://github.com/you/your-repo.git"
+            placeholderText: "https://github.com/you/repo.git  or  git@github.com:you/repo.git"
             text: root.cloneRepoUrl
             foreground: root.fg; accent: Commons.Color.accent; font.family: root.ff
             onTextChanged: root.cloneRepoUrl = text
@@ -2085,8 +2087,8 @@ Panel {
             onAccepted: cloneRepoButton.forceActiveFocus()
           }
           Text {
-            visible: root.cloneRepoUrl.trim() === ""
-            text: "Enter the private repository URL."
+            visible: root.cloneRepoUrl.trim() === "" || !(root.cloneRepoUrl.trim().indexOf("https://") === 0 || root.cloneRepoUrl.trim().indexOf("git@") === 0)
+            text: root.cloneRepoUrl.trim() === "" ? "Enter the private repository URL (HTTPS or SSH)." : "Use https://github.com/… or git@github.com:…"
             color: root.dim; font.family: root.ff; font.pixelSize: Style.font.caption
           }
           Row {
@@ -2099,7 +2101,7 @@ Panel {
               id: cloneRepoButton
               text: "Connect"; iconText: root.icBranch; bordered: true
               foreground: Commons.Color.accent; accent: Commons.Color.accent; fontFamily: root.ff
-              enabled: root.cloneRepoUrl.trim() !== ""
+              enabled: root.cloneRepoUrl.trim().indexOf("https://") === 0 || root.cloneRepoUrl.trim().indexOf("git@") === 0
               onClicked: root.cloneRepo()
             }
           }
@@ -2138,7 +2140,7 @@ Panel {
           }
           Text {
             text: "1-4 tabs   (j) next   (k) previous   arrows move   Enter opens\n"
-                  + "m manages   / filters   r refreshes   Esc closes   (?) help"
+                  + "m manages   / filters   s save   p pull   c collapse   a add   r refreshes   Esc closes   (?) help"
             color: root.dim; font.family: root.ff; font.pixelSize: Style.font.caption
             wrapMode: Text.WordWrap
           }
