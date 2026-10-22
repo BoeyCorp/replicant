@@ -1,13 +1,17 @@
 # Roadmap
 
+The executable plan, dependencies, acceptance criteria, and evidence are in [TASKS.md](TASKS.md).
+The 2026-10-22 update is a plan only. No audit correction is implemented by this update.
+
 ## Completed
 
 - F01 reconciles the open interaction and lifecycle evidence without claiming
   that human review or the blocked shell restart passed. F03 confirms that the
-  current Restore previews show their source, destination, differences,
+  reviewed Restore previews show their source, destination, differences,
   exclusions, and secret redaction. F04 separates active tasks from the
   preserved release history. F05 proposes direct navigation between visible
-  Restore cards.
+  Restore cards. F03 did not establish secret-history recovery or apply-error
+  propagation. F05 completed a proposal, not an interface change.
 
 - Version 0.41.0 delivers portable Omarchy controls: 100 panel settings with
   manual apply actions, managed-block structured editors (`shortcut`,
@@ -19,7 +23,38 @@
 - Version 0.13.0 delivered the single-format repository, transactional saves, bulk operations, and the current panel.
 - Version 0.14.0 makes the CLI fail closed for help, locks, core load errors, undo, and unknown states.
 
-## Current
+## Current (2026-10-22)
+
+- The local baseline is version 0.42.1 on `main`, commit `bda9422`.
+  Recent changes refresh update state when the panel opens and reduce Settings source lookups.
+- The panel has Overview, Configs, Settings, and Restore tabs. Machines is a section inside Overview.
+- The integral audit reproduced seven high-severity defects and nine medium-severity defects.
+  One further medium-severity modal keyboard finding requires real-key-event verification.
+- The audit passed the existing full suite, plugin validation, QML lint, and eight offscreen screenshots.
+  Additional probes exposed gaps in incoming-change protection, secret scope and permissions,
+  repository readiness, recovery, Settings edits, controller startup, and restore feedback.
+- Initialized-repository status probes were much slower than the empty-repository benchmark.
+  New performance budgets must follow representative measurements.
+- F02 remains blocked on a disposable graphical Omarchy session. Previous live placement evidence
+  and offscreen passes do not establish the current install/enable/restart/removal lifecycle.
+
+## Next
+
+1. **Urgent, F06–F14:** verify repository privacy explicitly; protect secret permissions and scope;
+   preserve incoming configs and encrypted changes; enforce readiness; recover secret-only deletions.
+2. **Important, F15–F22:** retain independent Settings edits; recover failed process startup;
+   report restore/apply results; align filters, owning-file navigation, key guidance, and documentation.
+   Verify the modal keyboard route before deciding whether it requires a correction.
+3. **Optimization, F23–F25:** make skipped validation visible, execute real runtime checks,
+   benchmark initialized repositories, and improve one measured bottleneck when justified.
+4. **Evolution, F26:** optionally add direct Restore section navigation from the F05 proposal.
+   Keep the existing four tabs; do not treat this proposal as a required defect correction.
+
+Start with **F06**. F02 can resume independently when its disposable environment is available.
+Production readiness still requires F02 and the real-runtime evidence in F23.
+No phase authorizes remote publication or changes to the active installation through this plan.
+
+## Previous release and verification context
 
 - Version 0.41.2 reports the actual update source and divergent history.
   Manual refresh invalidates cached settings and reloads the active view.
@@ -31,15 +66,12 @@
   restart preserved the saved layout. Human input review remains open.
 - The release lifecycle restart remains blocked by Omarchy's session lock.
   See `docs/settings-hardening-plan.md` for its scope.
-- Disposable-session verification for Settings hardening remains open.
-
-## Next
-
-- F02: BLOCKED. Verify Settings when a disposable Omarchy session is available.
+- Disposable-session verification for Settings hardening remains open as F02.
+  Dated evidence is preserved in [TASKS-HISTORY.md](TASKS-HISTORY.md).
 
 ## Portable controls expansion (0.41.0)
 
-- Work happens on `feature/portable-controls-0.41` (I0 through I7 local, I8 squashes to `main`).
+- Work used `feature/portable-controls-0.41` (I0 through I7 local, I8 squashed to `main`).
 - I0 establishes the baseline; I1 defers Settings data until requested.
 - I2 adds Settings navigation and manual apply actions.
 - I3 expands window and effect settings; I4 completes portable scalar settings (95 to 105).
