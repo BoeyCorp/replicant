@@ -110,19 +110,20 @@ replicant status --json
 
 ### A key for secrets
 
-Secrets are encrypted with age. One machine creates the shared identity, backs it up outside the
-repo, and each other machine adopts it once:
+Secrets are encrypted with age. The first machine creates the shared identity and backs it up
+outside the repo. Each other machine imports that backup: never run `key init` on a second
+machine, because the CLI refuses init over an existing encrypted vault (import instead).
 
 ```bash
-replicant key init
+replicant key init                                # first machine only
 replicant key export /path/outside/replicant/identity.txt
-replicant key import /path/outside/replicant/identity.txt
+replicant key import /path/outside/replicant/identity.txt  # every other machine, before saving secrets
 replicant key status
 replicant key rotate   # re-encrypts every secret to a new identity
 ```
 
 The repository holds only the public recipient. The private identity never enters Git, logs,
-status output, backups or journals.
+status output, backups or journals. A locked vault offers Import in the panel, never Create.
 
 ### Your list, not somebody else's
 
@@ -153,8 +154,11 @@ Click a row in **Configs** to open it. It shows where the file and its copy live
 every action for it. **Stop tracking** takes one of your own files off the list, and its copy
 leaves the repo. **Forget it** does the same for a file that is gone from this machine.
 
-Git history keeps every copy. **Restore**, **Deleted from your repo** lists them by the commit that
-removed them. **Bring back** puts the copy back in the repo and on this machine, and tracks it again.
+Git history keeps every copy and every encrypted secret. **Restore**, **Deleted from your repo**
+lists them by the commit that removed them, including vault-only secret deletions. **Bring back**
+puts the copy (or the vault index entry and blob) back in the repo and on this machine, and tracks
+it again. An invalid or incomplete repo reports `initialized:false`, leaves its data untouched,
+and names the missing piece.
 
 ```bash
 replicant forget hypr/old.lua        # a file you deleted: its copy goes too
@@ -274,9 +278,24 @@ Panel, **Restore**, *Preview* shows what would change, and touches nothing.
 
 ## Safety
 
-Every command that writes to your machine is a dry run by default. Every file that it overwrites is
-kept as `<file>.bak.<epoch>`. Nothing outside `$HOME` is written without a word: you get the exact
-`sudo` command. Your data repo is **private and yours**. This repo holds only the plugin's code.
+Preview-first commands print their plan and write only with `--apply` (dry run by default):
+`restore`, `recover`, `apply`, `shortcut`/`compose`/`bar-layout`/`workspace`/`display` mutations,
+`reconcile install`, `reset-all`, and `purge`. `--dry-run` always wins over `--apply`.
+
+Immediate commands write at once through a transaction, backup, or explicit consent (no `--apply`):
+`set`, `save`, `save-file`, `scope`, `policy`, `bulk` (with `--yes`), `track`/`untrack`/`forget`,
+`restore-file`, `reset`, `key init`/`import`/`rotate`, and `install-theme`/`install-plugin`
+(with revision consent). A restore that copies files but cannot apply them (failed
+`hyprctl reload` or config errors) fails loudly: the files and their `.bak.<epoch>` backups
+remain, and the message names the apply to run yourself.
+
+Every file that Replicant overwrites is kept as `<file>.bak.<epoch>` (secrets and their backups
+stay at mode 600). Nothing outside `$HOME` is written without a word: you get the exact
+`sudo` command. Keys live in `~/.local/share/replicant/keys/identity.txt` (mode 600, directory
+700). Journals live in `~/.local/share/replicant/transactions/` and are removed on success; a
+failed push keeps the commit with its journal for retry. Caches in `~/.local/share/replicant/cache/`
+hold no secret content. `purge` previews by default and keeps the repo and keys for recovery unless
+`--repo` is passed. Your data repo is **private and yours**. This repo holds only the plugin's code.
 
 ## Remove
 

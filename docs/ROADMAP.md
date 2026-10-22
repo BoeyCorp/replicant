@@ -1,10 +1,11 @@
 # Roadmap
 
 The executable plan, dependencies, acceptance criteria, and evidence are in [TASKS.md](TASKS.md).
-F06–F21 are implemented in this checkout (F21 code fix verified; physical-key proof remains in F02); F22 is next.
+F06–F22 are implemented in this checkout; F23 is next.
 
 ## Completed
 
+- F22 aligns setup and command docs with preview/apply behavior, key init vs import, and write locations. Covered in `tests/test-cli.sh` (365 checks) and `tests/test-bootstrap.sh` (93 checks). Docs only.
 - F21 isolates modal keyboard routing and restores focus through `closeTransient` on confirm. Covered in `tests/qml-controller.sh` (82 checks). Physical-key proof remains in F02. Shipped as 0.42.17.
 - F20 offers import for a locked existing vault and creation only for a fresh setup. Covered in `tests/qml-controller.sh` (81 checks), `tests/test-bootstrap.sh` (93 checks), and `tests/test-usability.sh` (143 checks). Shipped as 0.42.16.
 - F19 reveals the owning file by clearing only blocking filters, opening its category, scrolling, and focusing the row. Covered in `tests/qml-controller.sh` (80 checks) and `tests/test-usability.sh` (143 checks). Shipped as 0.42.15.

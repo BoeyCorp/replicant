@@ -19,6 +19,10 @@ Run `replicant clone <url>` on each other machine. The remote must hold
 a complete Replicant repository. If it is empty, return to the first machine
 and use Create.
 
-Run `replicant key init` before you save secrets. Run
-`replicant save --all --auto` to save configuration. Review a restore with
-`replicant restore --dry-run` before you apply it.
+Run `replicant key init` on the first machine before you save secrets. On every other
+machine, run `replicant key import <source>` instead (init is refused over an existing
+vault). Run `replicant save --all --auto` to save configuration. Review a restore with
+`replicant restore --dry-run` before you apply it. The examples below assume `replicant`
+is on your `PATH` (`$P/bin/replicant link` puts it there); otherwise prefix them with
+`$P/bin/replicant` where `$P` is the plugin directory from the Second-machine section
+of the README.

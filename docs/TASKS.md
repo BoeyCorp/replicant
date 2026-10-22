@@ -600,17 +600,31 @@ F02 can resume whenever its disposable environment exists; repeat affected scena
 
 - Finding and scope: R16; README, getting-started instructions, CLI help, and affected technical docs.
 - Tasks:
-  - [ ] Document each important command's preview/apply behavior from verified code and tests.
-  - [ ] Correct CLI path setup and distinguish key creation from key import on another machine.
-  - [ ] State live-file, backup, journal, cache, and key write locations and existing retention/removal behavior.
-  - [ ] Align pending-change, restore-apply, invalid-repository, and recovery explanations with completed phases.
+  - [x] Document each important command's preview/apply behavior from verified code and tests.
+  - [x] Correct CLI path setup and distinguish key creation from key import on another machine.
+  - [x] State live-file, backup, journal, cache, and key write locations and existing retention/removal behavior.
+  - [x] Align pending-change, restore-apply, invalid-repository, and recovery explanations with completed phases.
 - Dependencies: F06 through F20 and the recorded F21 outcome.
 - Acceptance: setup examples work in a synthetic home; no blanket dry-run or write-boundary claim contradicts behavior.
   Unavailable live checks remain explicitly pending.
 - Required checks: documentation/CLI cross-check, safe bootstrap examples, `tests/test-cli.sh`,
   secret scan, local link validation, and `git diff --check`.
 - Estimate and risk: 3–5 hours; describe existing behavior, without inventing cleanup or retention capabilities.
-- State: Pending. Correct changed-command documentation within each earlier phase as well.
+- State: Completed (docs only, no version bump).
+- Evidence: README Safety now separates preview-first (`restore`, `recover`,
+  `apply`, structured mutations, `reconcile install`, `reset-all`, `purge`)
+  from immediate writes (`set`, `save`, `scope`, `track`, `restore-file`,
+  `key init/import`, etc.), documents apply-failure reporting with backups
+  kept, key locations/modes, journals, caches, and purge retention, and
+  distinguishes first-machine init from second-machine import (CLI refuses
+  init over an existing vault). Getting-started notes the `link`/plugin-path
+  requirement. Recovery notes vault-only deletions and `initialized:false`
+  behavior. `tests/test-cli.sh` passes 365 checks,
+  `tests/test-bootstrap.sh` passes 93 checks, secret scan passes, local
+  links validate, and `git diff --check` passes.
+- Changed files: `README.md`, `docs/getting-started.md`, `docs/TASKS.md`,
+  `docs/ROADMAP.md`.
+- Commit: this commit.
 
 ## Optimization: make evidence representative
 
