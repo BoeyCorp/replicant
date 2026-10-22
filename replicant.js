@@ -899,3 +899,37 @@ function focusIndexFor(items, focus, fallback) {
   }
   return Math.max(0, Math.min(Math.max(0, list.length - 1), Number(fallback) || 0))
 }
+
+// ── Pending Settings edits ─────────────────────────────────────────────
+// One debounce slot drops an earlier edit when a second setting changes
+// before the timer fires. Keep one entry per setting id: repeated edits to
+// the same id coalesce to their final value, distinct ids are all retained
+// in first-touch order. Flush returns the ordered list and clears the store
+// so navigation or panel closure can apply before leaving instead of
+// silently discarding.
+function createPendingSettings() {
+  return { order: [], values: {} }
+}
+function queuePendingSetting(store, id, value) {
+  var s = store || createPendingSettings()
+  var key = String(id || "")
+  if (key === "") return s
+  if (s.values[key] === undefined) s.order.push(key)
+  s.values[key] = String(value)
+  return s
+}
+function flushPendingSettings(store) {
+  var s = store || createPendingSettings()
+  var out = []
+  for (var i = 0; i < s.order.length; i++) {
+    var key = s.order[i]
+    if (s.values[key] !== undefined) out.push({ id: key, value: s.values[key] })
+  }
+  s.order = []
+  s.values = {}
+  return out
+}
+function pendingSettingsCount(store) {
+  var s = store || createPendingSettings()
+  return s.order.length
+}

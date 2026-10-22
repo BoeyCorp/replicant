@@ -1172,17 +1172,23 @@ Panel {
 
   // Controls that emit a burst of values (holding a stepper, dragging a
   // slider) would otherwise be one commit and push per intermediate value.
-  property string pendingSettingId: ""
-  property string pendingSettingValue: ""
+  // One slot per setting id: repeated edits coalesce to their final value,
+  // distinct ids are all retained in first-touch order. Flush applies every
+  // pending edit once, so tab changes and panel closure never silently drop
+  // one. Failures stay visible through the controller result, not a quiet drop.
+  property var pendingSettings: R.createPendingSettings()
   function queueSetting(id, value) {
-    root.pendingSettingId = id
-    root.pendingSettingValue = String(value)
+    R.queuePendingSetting(root.pendingSettings, id, value)
     settingDebounce.restart()
+  }
+  function flushPendingSettings() {
+    var items = R.flushPendingSettings(root.pendingSettings)
+    for (var i = 0; i < items.length; i++) root.doSetSetting(items[i].id, items[i].value)
   }
   Timer {
     id: settingDebounce
     interval: 900
-    onTriggered: if (root.pendingSettingId !== "") { root.doSetSetting(root.pendingSettingId, root.pendingSettingValue); root.pendingSettingId = "" }
+    onTriggered: root.flushPendingSettings()
   }
 
   // ── the plugin's own updates ──────────────────────────────────────────────
@@ -1541,6 +1547,7 @@ Panel {
     }
   }
   function close() {
+    root.flushPendingSettings()
     root.opened = false
     root.viewerOpen = false
     root.keyboardHelpOpen = false
@@ -1577,6 +1584,7 @@ Panel {
     return true
   }
   onActiveTabChanged: {
+    root.flushPendingSettings()
     var tabIndex = ["overview", "configs", "settings", "restore"].indexOf(root.activeTab)
     root.keyboardFocusIndex = tabIndex < 0 ? 0 : tabIndex
     root.rememberCurrentScroll()

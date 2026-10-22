@@ -1,10 +1,11 @@
 # Roadmap
 
 The executable plan, dependencies, acceptance criteria, and evidence are in [TASKS.md](TASKS.md).
-F06–F14 are implemented in this checkout; F15 is next.
+F06–F15 are implemented in this checkout; F16 is next.
 
 ## Completed
 
+- F15 retains independent Settings edits through a per-ID debounce store and flushes on timer, tab change, and close. Covered in `tests/qml-controller.sh` (73 checks), `tests/test-settings-save.sh` (35 checks), and `tests/test-usability.sh` (143 checks). Shipped as 0.42.11.
 - F14 routes vault-only recovery through the existing transaction without a
   config checkout: the vault index and blob return, the copy restores onto
   the machine, and the commit uses the shared policy stores. Covered in

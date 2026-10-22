@@ -414,16 +414,28 @@ F02 can resume whenever its disposable environment exists; repeat affected scena
 
 - Finding and scope: R08; Settings debounce and save dispatch in `Panel.qml`.
 - Tasks:
-  - [ ] Reproduce two distinct setting edits inside the debounce interval in the real panel.
-  - [ ] Coalesce repeated edits for one setting while retaining edits for other settings.
-  - [ ] Define pending-edit behavior on tab changes, panel closure, and command failure.
+  - [x] Reproduce two distinct setting edits inside the debounce interval in the real panel.
+  - [x] Coalesce repeated edits for one setting while retaining edits for other settings.
+  - [x] Define pending-edit behavior on tab changes, panel closure, and command failure.
 - Dependencies: none.
 - Acceptance: both distinct edits reach the controller once; repeated edits to one ID apply its final value.
   Navigation or failure cannot silently discard a pending edit.
 - Required checks: `tests/qml-controller.sh`, `tests/test-settings-save.sh`, `tests/test-usability.sh`;
   add executable panel interaction coverage rather than source-text matching.
 - Estimate and risk: 3–5 hours; preserve write ordering and avoid applying stale values after a reset.
-- State: Pending.
+- State: Completed.
+- Evidence: `replicant.js` adds a per-ID pending-settings store
+  (`create/queue/flush/count`); `Panel.qml` queues through it, flushes on
+  debounce, tab change, and close, and reports failures through the
+  controller result. `tests/qml/tst_replicant.qml` covers distinct and
+  coalesced edits. `tests/qml-controller.sh` passes 73 checks,
+  `tests/test-settings-save.sh` passes 35 checks, and
+  `tests/test-usability.sh` passes 143 checks. `manifest.json` 0.42.10
+  -> 0.42.11.
+- Changed files: `replicant.js`, `Panel.qml`,
+  `tests/qml/tst_replicant.qml`, `manifest.json`, `docs/TASKS.md`,
+  `docs/ROADMAP.md`.
+- Commit: this commit.
 
 ### F16. Recover the controller after process startup failure
 

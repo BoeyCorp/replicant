@@ -608,6 +608,34 @@ TestCase {
     compare(R.actionDisabledReason({ hasKey: false, ready: true }), "Import the encryption key before managing secrets.")
   }
 
+  function test_pending_settings_retain_distinct_edits() {
+    var store = R.createPendingSettings()
+    R.queuePendingSetting(store, "idle.lock", "600")
+    R.queuePendingSetting(store, "bar.position", "top")
+    compare(R.pendingSettingsCount(store), 2)
+    var flushed = R.flushPendingSettings(store)
+    compare(flushed.length, 2)
+    compare(flushed[0].id, "idle.lock")
+    compare(flushed[0].value, "600")
+    compare(flushed[1].id, "bar.position")
+    compare(flushed[1].value, "top")
+    compare(R.pendingSettingsCount(store), 0)
+  }
+
+  function test_pending_settings_coalesce_repeated_edits() {
+    var store = R.createPendingSettings()
+    R.queuePendingSetting(store, "idle.lock", "600")
+    R.queuePendingSetting(store, "bar.position", "top")
+    R.queuePendingSetting(store, "idle.lock", "900")
+    compare(R.pendingSettingsCount(store), 2)
+    var flushed = R.flushPendingSettings(store)
+    compare(flushed.length, 2)
+    compare(flushed[0].id, "idle.lock")
+    compare(flushed[0].value, "900")
+    compare(flushed[1].id, "bar.position")
+    compare(flushed[1].value, "top")
+  }
+
   function test_keyboard_action_matches_the_row_state() {
     compare(R.keyboardActionFor({ sync_state: "incoming" }), "restore")
     compare(R.keyboardActionFor({ sync_state: "missing" }), "restore")
