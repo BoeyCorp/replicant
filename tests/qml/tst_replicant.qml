@@ -662,6 +662,34 @@ TestCase {
     verify(!R.searchSyncShouldEmit(field, owned))
   }
 
+  function test_owner_reveal_clears_only_blocking_search() {
+    var row = { id: "hypr/input.lua", label: "input.lua", src: "/home/u/.config/hypr/input.lua", sync_state: "saved", category: "hyprland" }
+    var needs = R.ownerRevealNeeds(row, "input", "all")
+    compare(needs.clearSearch, false)
+    compare(needs.clearFilter, false)
+    needs = R.ownerRevealNeeds(row, "nomatch", "all")
+    compare(needs.clearSearch, true)
+    compare(needs.clearFilter, false)
+  }
+
+  function test_owner_reveal_clears_only_blocking_filter() {
+    var row = { id: "hypr/input.lua", label: "input.lua", src: "x", sync_state: "saved", category: "hyprland" }
+    var needs = R.ownerRevealNeeds(row, "", "changed")
+    compare(needs.clearSearch, false)
+    compare(needs.clearFilter, true)
+    needs = R.ownerRevealNeeds([row][0], "", "all")
+    compare(needs.clearFilter, false)
+  }
+
+  function test_owner_reveal_missing_is_explicit() {
+    compare(R.ownerFindRow([], "nope"), null)
+    var needs = R.ownerRevealNeeds(null, "", "all")
+    compare(needs.missing, true)
+    var row = { id: "a", label: "a", src: "a", sync_state: "saved" }
+    compare(R.ownerFindRow([row], "a").id, "a")
+    compare(R.ownerFindRow([row], "b"), null)
+  }
+
   function test_keyboard_action_matches_the_row_state() {
     compare(R.keyboardActionFor({ sync_state: "incoming" }), "restore")
     compare(R.keyboardActionFor({ sync_state: "missing" }), "restore")

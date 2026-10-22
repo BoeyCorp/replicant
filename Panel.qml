@@ -972,10 +972,51 @@ Panel {
   }
 
   // Jump from a setting to the Configs row that owns its file.
+  // Reconcile only the filters that hide the target, reveal its category,
+  // scroll it into view, and transfer keyboard focus. Missing ownership is
+  // explicit through lastOutput, never a silent no-op. Unrelated open cards
+  // and non-blocking filters are preserved.
   function showOwnerInConfigs(id) {
-    if (!id) return
+    if (!id) {
+      root.lastTitle = "Show owning file"
+      root.lastOk = false
+      root.lastOutput = "No file id was given."
+      return false
+    }
+    var row = R.ownerFindRow(root.everyRow, id)
+    if (!row) {
+      root.lastTitle = "Show owning file"
+      root.lastOk = false
+      root.lastOutput = "No tracked file owns '" + id + "'."
+      return false
+    }
+    var needs = R.ownerRevealNeeds(row, root.fileSearch, root.stateFilter)
+    if (needs.clearSearch) root.setFileSearch("")
+    if (needs.clearFilter) root.setStateFilter("all")
+    var cat = row.category || "other"
+    if (!root.isOpen(cat)) {
+      var cards = {}
+      for (var k in root.openCards) cards[k] = root.openCards[k]
+      cards[cat] = true
+      root.openCards = cards
+    }
     root.activeTab = "configs"
     root.openRow = id
+    Qt.callLater(function() {
+      var item = configsTab.navigationItem(root.openRow, root.openCards)
+      if (item && body) {
+        var point = item.mapToItem(body, 0, 0)
+        if (point) body.contentY = Math.max(0, Math.min(point.y - 80, body.contentHeight - body.height))
+      }
+      var items = root.keyboardFocusItems || []
+      for (var i = 0; i < items.length; i++) {
+        if (items[i].kind === "row" && String(items[i].id) === String(id)) {
+          root.keyboardFocusIndex = i
+          break
+        }
+      }
+    })
+    return true
   }
 
   function doRevert(id, to) {

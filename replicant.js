@@ -947,3 +947,31 @@ function searchSyncShouldEmit(fieldText, ownedText) {
 function searchSyncNeedsFieldUpdate(fieldText, ownedText) {
   return String(fieldText || "") !== String(ownedText || "")
 }
+
+// ── Owning-file reveal ────────────────────────────────────────────────
+// Show owning file must expose the row without manual filter clearing:
+// clear only the filters that actually hide the target, reveal its
+// category, and leave unrelated user state alone. Missing ownership is an
+// explicit null, never a silent no-op.
+function ownerFindRow(rows, id) {
+  var list = rows || [], key = String(id || "")
+  if (key === "") return null
+  for (var i = 0; i < list.length; i++) {
+    if (String(list[i].id) === key) return list[i]
+  }
+  return null
+}
+function searchBlocksRow(row, search) {
+  var needle = String(search || "").toLowerCase()
+  if (needle === "" || !row) return false
+  var hay = (String(row.label || "") + " " + String(row.src || "")).toLowerCase()
+  return hay.indexOf(needle) === -1
+}
+function filterBlocksRow(row, filter) {
+  if (!filter || filter === "all" || !row) return false
+  return !rowMatchesFilter(row, filter)
+}
+function ownerRevealNeeds(row, search, filter) {
+  if (!row) return { clearSearch: false, clearFilter: false, missing: true }
+  return { clearSearch: searchBlocksRow(row, search), clearFilter: filterBlocksRow(row, filter), missing: false }
+}

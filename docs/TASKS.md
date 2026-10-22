@@ -518,14 +518,27 @@ F02 can resume whenever its disposable environment exists; repeat affected scena
 
 - Finding and scope: R11; Settings-to-Configs navigation in `Panel.qml`.
 - Tasks:
-  - [ ] Reproduce the jump with an incompatible search, collapsed category, and offscreen target.
-  - [ ] Reveal the category and row, reconcile blocking filters, scroll, and transfer focus.
+  - [x] Reproduce the jump with an incompatible search, collapsed category, and offscreen target.
+  - [x] Reveal the category and row, reconcile blocking filters, scroll, and transfer focus.
 - Dependencies: F18.
 - Acceptance: Show owning file exposes the intended row without manual filter clearing or extra searching.
   Missing ownership metadata gives an explicit result.
 - Required checks: `tests/test-usability.sh` and executable QML interaction coverage for each blocking state.
 - Estimate and risk: 2–4 hours; avoid clearing unrelated user state when it does not hide the target.
-- State: Pending.
+- State: Completed.
+- Evidence: `Panel.showOwnerInConfigs` reconciles only blocking search/filter
+  via `R.ownerRevealNeeds`, opens the owning category, sets `openRow`,
+  scrolls via `navigationItem`, and moves `keyboardFocusIndex`; missing ids
+  report through `lastOutput`. `replicant.js` adds
+  `ownerFindRow`/`searchBlocksRow`/`filterBlocksRow`/`ownerRevealNeeds` with
+  QML cases for blocking search, blocking filter, and missing rows.
+  `tests/qml-controller.sh` passes 80 checks,
+  `tests/test-usability.sh` passes 143 checks, and `qmllint` passes.
+  `manifest.json` 0.42.14 -> 0.42.15.
+- Changed files: `Panel.qml`, `replicant.js`,
+  `tests/qml/tst_replicant.qml`, `manifest.json`, `docs/TASKS.md`,
+  `docs/ROADMAP.md`.
+- Commit: this commit.
 
 ### F20. Offer the correct key action
 
