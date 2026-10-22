@@ -736,7 +736,7 @@ This update changes only `TASKS.md`, `TASKS-HISTORY.md`, and `ROADMAP.md`.
 
 ## Next action
 
-- Next phase: **F14**, secret-only recovery.
-- Resume command: `$taskflow run F14`.
+- Next phase: **F24**, representative status benchmark.
+- Resume command: `$taskflow run F24`.
 - Recommended effort: **medium**.
-- F02 remains blocked independently; do not wait for its environment before addressing confirmed data risks.
+- F02 remains blocked independently; F25 waits on F24 profiling; F26 stays optional.
