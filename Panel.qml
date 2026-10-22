@@ -1295,7 +1295,7 @@ Panel {
     var a = root.confirmAction, arg = root.confirmArg
     root.confirmAction = ""; root.confirmArg = ""
     confirmDialog.opened = false
-    root.closeTransient()""
+    root.closeTransient()
     var command = null, label = "Restore"
     if (a === "reset-file")        { root.busyLabel = "Resetting " + arg + "…"; command = [root.cli, "reset", arg]; label = "Reset" }
     else if (a === "restore-file") { root.busyLabel = "Restoring " + arg + "…"; command = [root.cli, "restore-file", arg] }
