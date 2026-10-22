@@ -661,17 +661,30 @@ F02 can resume whenever its disposable environment exists; repeat affected scena
 
 - Finding and scope: measurement portion of R14; status benchmarks and synthetic fixtures.
 - Tasks:
-  - [ ] Add representative initialized fixtures with shared/profile configs, vault state, and pending work.
-  - [ ] Measure cold and warm full/deferred/brief status over documented repeated samples.
-  - [ ] Report median and tail latency with fixture size, runtime versions, and cache conditions.
-  - [ ] Profile the dominant work and set justified budgets from the resulting baseline.
+  - [x] Add representative initialized fixtures with shared/profile configs, vault state, and pending work.
+  - [x] Measure cold and warm full/deferred/brief status over documented repeated samples.
+  - [x] Report median and tail latency with fixture size, runtime versions, and cache conditions.
+  - [x] Profile the dominant work and set justified budgets from the resulting baseline.
 - Dependencies: F08 through F12, so the benchmark preserves the corrected state semantics.
 - Acceptance: the gate exercises real status work and detects a deliberate slowdown.
   It reports all samples or sufficient artifacts and never substitutes the fastest empty-state result.
 - Required checks: `tests/bench-status.sh --check`, `tests/bench-settings.sh`,
   fixture status assertions, and a controlled budget-failure run.
 - Estimate and risk: 4–6 hours; isolate benchmark data and distinguish host noise from a product regression.
-- State: Pending.
+- State: Completed.
+- Evidence: `tests/bench-status-initialized.sh` builds a 42-row fixture
+  (30 shared, 10 vault secrets, 1 dir of 10, 1 script; 2 unsaved, 1 missing;
+  vault ready; no secret leak) and asserts it, then reports cold full plus
+  3 warm samples per mode with median/max, fixture size, and tool versions.
+  Reference medians: full ~9.6 s, deferred ~6.7 s, brief ~4.4 s; budgets
+  20/15/12 s (~2x headroom for runner noise). A 1 ms-budget run fails as
+  required, proving slowdown detection. `tests/bench-status.sh --check`
+  passes (0.08/0.08 s harness smoke), `tests/bench-settings.sh` passes
+  (3824 ms < 6000 ms), new gate passes 9/9 checks, G5 runs it.
+  No version bump: test and gate changes only.
+- Changed files: `tests/bench-status-initialized.sh`, `tests/gate.sh`,
+  `docs/TASKS.md`, `docs/ROADMAP.md`.
+- Commit: this commit.
 
 ### F25. Improve one measured status bottleneck
 

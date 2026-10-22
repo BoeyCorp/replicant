@@ -243,6 +243,7 @@ gate_g5() {
   if "$HERE/test-bulk.sh" >/dev/null 2>&1; then ok "bulk validation suite passes"; else bad "bulk validation suite fails"; fi
   if "$HERE/test-bulk-vault.sh" >/dev/null 2>&1; then ok "bulk vault suite passes"; else bad "bulk vault suite fails"; fi
   if "$HERE/test-settings.sh" >/dev/null 2>&1; then ok "settings unit suite passes"; else bad "settings unit suite fails"; fi
+  if "$HERE/bench-status-initialized.sh" >/dev/null 2>&1; then ok "initialized status benchmark passes"; else bad "initialized status benchmark fails"; fi
   if "$HERE/test-settings-save.sh" >/dev/null 2>&1; then ok "settings persistence suite passes"; else bad "settings persistence suite fails"; fi
   if "$HERE/test-structured.sh" >/dev/null 2>&1; then ok "structured editors suite passes"; else bad "structured editors suite fails"; fi
   if "$HERE/test-desktop.sh" >/dev/null 2>&1; then ok "desktop editors suite passes"; else bad "desktop editors suite fails"; fi
