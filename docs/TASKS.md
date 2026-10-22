@@ -125,7 +125,7 @@ F02 can resume whenever its disposable environment exists; repeat affected scena
 | Priority | Phase | Outcome | Dependencies | State |
 | --- | --- | --- | --- | --- |
 | Existing verification | F02 | Real Settings and desktop lifecycle evidence | F01; disposable session | BLOCKED |
-| Urgent | F06 | Explicit private-repository verification | None | Pending |
+| Urgent | F06 | Explicit private-repository verification | None | Completed |
 | Urgent | F07 | Restrictive secret and backup permissions | None | Pending |
 | Urgent | F08 | One effective secret scope | None | Pending |
 | Urgent | F09 | Durable incoming config markers | None | Pending |
@@ -173,15 +173,29 @@ F02 can resume whenever its disposable environment exists; repeat affected scena
 
 - Finding and scope: R04; repository setup in `bin/lib/repo.sh`.
 - Tasks:
-  - [ ] Reproduce failed, empty, malformed, public, and explicit PRIVATE visibility responses through a fake GitHub CLI.
-  - [ ] Require explicit private visibility before activating a data repository or allowing subsequent publication.
-  - [ ] Provide an actionable verification error and cover retry after a transient failure.
+  - [x] Reproduce failed, empty, malformed, public, and explicit PRIVATE visibility responses through a fake GitHub CLI.
+  - [x] Require explicit private visibility before activating a data repository or allowing subsequent publication.
+  - [x] Provide an actionable verification error and cover retry after a transient failure.
 - Dependencies: none.
 - Acceptance: unknown or non-private visibility cannot activate the repository or reach a push.
   A verified private repository still completes setup.
 - Required checks: `tests/test-bootstrap.sh`, `tests/test-cli.sh`; assert command calls and unchanged local setup on failure.
 - Estimate and risk: 2–4 hours; authentication and network failures must remain distinguishable from public visibility.
-- State: Pending.
+- State: Completed.
+- Evidence: `bin/lib/repo.sh` adds `repo_verify_private` and fails closed on
+  command failure, empty output, or any non-PRIVATE value; existing-public,
+  empty, malformed, and failing visibility leave remote, HEAD, and tree
+  untouched and log no push. New-remote post-create verification leaves no
+  repo directory on failure; a transient failure retries as PRIVATE and
+  activates. `tests/test-bootstrap.sh` grows from 50 to 89 checks with
+  existing, new-remote, and retry coverage. `tests/test-cli.sh` passes 361
+  checks. `tests/gate.sh G2` passes 12 checks. `docs/getting-started.md`
+  states the explicit PRIVATE requirement and retry. `manifest.json` 0.42.1
+  -> 0.42.2.
+- Changed files: `bin/lib/repo.sh`, `tests/test-bootstrap.sh`,
+  `docs/getting-started.md`, `manifest.json`, `docs/TASKS.md`,
+  `docs/ROADMAP.md`.
+- Commit: this commit.
 
 ### F07. Enforce secret and backup permissions
 
@@ -519,8 +533,7 @@ This update changes only `TASKS.md`, `TASKS-HISTORY.md`, and `ROADMAP.md`.
 
 ## Next action
 
-- Next phase: **F06**, explicit private-repository verification.
-- Resume command: `$taskflow run F06`.
+- Next phase: **F07**, restrictive secret and backup permissions.
+- Resume command: `$taskflow run F07`.
 - Recommended effort: **medium**.
 - F02 remains blocked independently; do not wait for its environment before addressing confirmed data risks.
-- No implementation, commit, publication, or installation is part of this planning update.

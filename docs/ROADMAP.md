@@ -1,10 +1,15 @@
 # Roadmap
 
 The executable plan, dependencies, acceptance criteria, and evidence are in [TASKS.md](TASKS.md).
-The 2026-10-22 update is a plan only. No audit correction is implemented by this update.
+F06 is implemented in this checkout; F07 is next.
 
 ## Completed
 
+- F06 requires explicit PRIVATE visibility before activation or push: unknown,
+  empty, malformed, or failing results stop with an actionable message and no
+  local mutation, and a transient failure retries as PRIVATE. Covered in
+  `tests/test-bootstrap.sh` (89 checks), `tests/test-cli.sh` (361 checks),
+  and `tests/gate.sh G2`. Shipped as 0.42.2.
 - F01 reconciles the open interaction and lifecycle evidence without claiming
   that human review or the blocked shell restart passed. F03 confirms that the
   reviewed Restore previews show their source, destination, differences,
@@ -50,7 +55,7 @@ The 2026-10-22 update is a plan only. No audit correction is implemented by this
 4. **Evolution, F26:** optionally add direct Restore section navigation from the F05 proposal.
    Keep the existing four tabs; do not treat this proposal as a required defect correction.
 
-Start with **F06**. F02 can resume independently when its disposable environment is available.
+Start with **F07**. F02 can resume independently when its disposable environment is available.
 Production readiness still requires F02 and the real-runtime evidence in F23.
 No phase authorizes remote publication or changes to the active installation through this plan.
 

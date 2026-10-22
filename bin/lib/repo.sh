@@ -27,13 +27,41 @@ repo_remote_url() { git -C "$REPO_DIR" remote get-url origin 2>/dev/null || true
 # so the CLI never shells out to git itself.
 repo_hooks_path() { git -C "$REPO_DIR" config core.hooksPath 2>/dev/null || true; }
 
+# repo_verify_private <slug>: require explicit PRIVATE visibility. Fails
+# closed on any unknown result: command failure, empty output, or a
+# non-PRIVATE value. Prints an actionable message and changes nothing
+# locally. Authentication and network failures stay distinct from a PUBLIC
+# repository so the user knows whether to log in or flip visibility.
+repo_verify_private() {
+  local slug="$1" vis_raw vis
+  if ! vis_raw=$(gh repo view "$slug" --json visibility --jq .visibility 2>/dev/null); then
+    echo "could not verify github.com/$slug is private — 'gh repo view $slug --json visibility' failed; run 'gh auth login', check the network, then retry; nothing was changed locally" >&2
+    return 1
+  fi
+  vis=$(printf '%s' "$vis_raw" | tr -d '[:space:]')
+  if [[ -z "$vis" ]]; then
+    echo "could not verify github.com/$slug is private — GitHub returned an empty visibility; run 'gh auth login', check the network, then retry; nothing was changed locally" >&2
+    return 1
+  fi
+  if [[ "$vis" == PRIVATE ]]; then
+    return 0
+  fi
+  if [[ "$vis" == PUBLIC ]]; then
+    echo "repo github.com/$slug is PUBLIC — replicant holds secrets, so it never uses a public repo" >&2
+    echo "switch it to private by hand (gh repo edit $slug --visibility private), then retry; nothing was changed locally" >&2
+    return 1
+  fi
+  echo "repo github.com/$slug has unexpected visibility '$vis', expected PRIVATE — switch it to private by hand (gh repo edit $slug --visibility private), then retry; nothing was changed locally" >&2
+  return 1
+}
+
 # private GitHub repo. Every remote preflight runs before any local mutation:
 # a rejected or failed remote leaves the local repo exactly as it was. A
 # PUBLIC remote is refused, never flipped: flipping it would be a visibility
 # change the user never asked for. Origin is set last, after the local repo
 # validates, so a failed create never leaves a re-pointed origin behind.
 repo_create() {
-  local name="$1" do_push="${2:-0}" transport="${3:-https}" gh_user url vis
+  local name="$1" do_push="${2:-0}" transport="${3:-https}" gh_user url
   local fresh=0 txdir="" candidate="" subject=""
   [[ "$name" =~ ^[A-Za-z0-9._-]+$ && ${#name} -le 100 && "$name" != "." && "$name" != ".." ]] || { echo "invalid name: $name" >&2; return 1; }
   [[ "$transport" == https || "$transport" == ssh ]] || { echo "invalid transport: $transport" >&2; return 1; }
@@ -44,22 +72,13 @@ repo_create() {
   fi
   echo "creating github.com/$gh_user/$name --private ..." >&2
   if gh repo view "$gh_user/$name" >/dev/null 2>&1; then
-    vis=$(gh repo view "$gh_user/$name" --json visibility --jq .visibility 2>/dev/null || echo "")
-    if [[ "$vis" == PUBLIC ]]; then
-      echo "repo github.com/$gh_user/$name already exists and is PUBLIC — replicant holds secrets, so it never uses a public repo" >&2
-      echo "switch it to private by hand (gh repo edit $gh_user/$name --visibility private), then retry; nothing was changed locally" >&2
-      return 1
-    fi
+    repo_verify_private "$gh_user/$name" || return 1
   else
     gh repo create "$name" --private --description "Omarchy replicant private repo" >/dev/null 2>&1 || {
       echo "gh create failed — run 'gh auth login', then retry 'replicant create $name'" >&2
       return 1
     }
-    vis=$(gh repo view "$gh_user/$name" --json visibility --jq .visibility 2>/dev/null || echo "")
-    if [[ -n "$vis" && "$vis" != PRIVATE ]]; then
-      echo "the new repo github.com/$gh_user/$name is $vis, not private — switch it to private by hand, then retry; nothing was changed locally" >&2
-      return 1
-    fi
+    repo_verify_private "$gh_user/$name" || return 1
   fi
   if [[ "$transport" == ssh ]]; then
     url="git@github.com:$gh_user/$name.git"

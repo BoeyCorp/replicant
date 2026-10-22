@@ -26,6 +26,11 @@ set +e +u
 #   private  — repo view succeeds with PRIVATE visibility
 #   public   — repo view succeeds with PUBLIC visibility
 #   createfail — repo view fails and create fails
+#   empty / malformed / failvis — existing remote with empty, unexpected,
+#     or failing visibility (must be rejected without local mutation)
+#   newempty / newmalformed / newfail — missing remote whose post-create
+#     visibility check returns empty, unexpected, or failing (must be
+#     rejected without activation, retry with private succeeds)
 make_gh() {
   local dir="$1" mode="$2"
   mkdir -p "$dir"
@@ -39,11 +44,18 @@ case "\$*" in
     case "$mode" in
       private) echo "PRIVATE"; exit 0 ;;
       public) echo "PUBLIC"; exit 0 ;;
+      empty) echo ""; exit 0 ;;
+      malformed) echo "weird"; exit 0 ;;
+      failvis) echo "stub: visibility lookup failed" >&2; exit 1 ;;
+      newempty) [ -f "\$created" ] && { echo ""; exit 0; }; exit 1 ;;
+      newmalformed) [ -f "\$created" ] && { echo "weird"; exit 0; }; exit 1 ;;
+      newfail) [ -f "\$created" ] && { echo "stub: visibility lookup failed" >&2; exit 1; }; exit 1 ;;
       *) [ -f "\$created" ] && { echo "PRIVATE"; exit 0; }; exit 1 ;;
     esac ;;
   *"repo view"*)
     case "$mode" in
-      private|public) exit 0 ;;
+      private|public|empty|malformed|failvis) exit 0 ;;
+      newempty|newmalformed|newfail) [ -f "\$created" ] && exit 0; exit 1 ;;
       *) [ -f "\$created" ] && exit 0; exit 1 ;;
     esac ;;
   *"repo create"*)
@@ -140,6 +152,66 @@ else
 fi
 check_false "…never calling repo edit for visibility" \
   grep -q "repo edit" "$STUB_LOG"
+
+section "create rejects unknown visibility without local mutation"
+for _mode in empty malformed failvis; do
+  make_gh "$TMP/gh-$_mode" "$_mode"
+  : > "$STUB_LOG"
+  remote_before=$(git -C "$REPO_DIR" remote get-url origin 2>/dev/null || true)
+  head_before=$(git -C "$REPO_DIR" rev-parse HEAD 2>/dev/null || true)
+  tree_before=$(hash_tree "$REPO_DIR")
+  out=$(PATH="$TMP/gh-$_mode:$PATH" repo_create "testrepo" 0 https 2>&1); rc=$?
+  check "create fails with $_mode visibility" "1" "$(if (( rc != 0 )); then echo 1; else echo 0; fi)"
+  check_contains "…leaving an actionable $_mode message" "nothing was changed locally" "$out"
+  check "…leaving the remote untouched ($_mode)" "$remote_before" \
+    "$(git -C "$REPO_DIR" remote get-url origin 2>/dev/null || true)"
+  check "…leaving HEAD untouched ($_mode)" "$head_before" \
+    "$(git -C "$REPO_DIR" rev-parse HEAD 2>/dev/null || true)"
+  check "…leaving the tree untouched ($_mode)" "$tree_before" "$(hash_tree "$REPO_DIR")"
+  if grep -q "push" "$STUB_LOG" 2>/dev/null; then
+    t_bad "…performing no push with $_mode visibility (a push was logged)"
+  else
+    t_ok "…performing no push with $_mode visibility"
+  fi
+done
+unset _mode
+check_false "…never calling repo edit for visibility" \
+  grep -q "repo edit" "$STUB_LOG"
+
+section "create verifies a new remote before activation"
+for _mode in newempty newmalformed newfail; do
+  rm -rf -- "$REPO_DIR"
+  make_gh "$TMP/gh-$_mode" "$_mode"
+  : > "$STUB_LOG"
+  out=$(PATH="$TMP/gh-$_mode:$PATH" repo_create "newrepo" 0 https 2>&1); rc=$?
+  check "a new repo with $_mode visibility fails" "1" "$(if (( rc != 0 )); then echo 1; else echo 0; fi)"
+  check_contains "…with an actionable $_mode message" "nothing was changed locally" "$out"
+  check_false "…leaving no repo directory ($_mode)" test -e "$REPO_DIR"
+  check_true "…and no staging directory ($_mode)" no_staging_left
+  if grep -q "push" "$STUB_LOG" 2>/dev/null; then
+    t_bad "…performing no push with $_mode visibility (a push was logged)"
+  else
+    t_ok "…performing no push with $_mode visibility"
+  fi
+done
+unset _mode
+
+section "a transient visibility failure retries as private"
+rm -rf -- "$REPO_DIR"
+make_gh "$TMP/gh-retry-fail" newfail
+out=$(PATH="$TMP/gh-retry-fail:$PATH" repo_create "retryrepo" 0 https 2>&1); rc=$?
+check "the first attempt with failing visibility fails" "1" "$(if (( rc != 0 )); then echo 1; else echo 0; fi)"
+check_false "…leaving no repo directory before retry" test -e "$REPO_DIR"
+make_gh "$TMP/gh-retry-private" private
+# Simulate the retry after the remote now exists as private: the created
+# marker from the failed attempt is not reused across stubs, so seed the
+# private stub as an existing remote instead.
+touch "$TMP/gh-retry-private/created"
+out=$(PATH="$TMP/gh-retry-private:$PATH" repo_create "retryrepo" 0 https 2>&1); rc=$?
+check "retry with verified PRIVATE succeeds" "0" "$rc"
+check "…activating the verified repo" '{"format":"replicant"}' \
+  "$(cat "$REPO_DIR/.replicant/schema.json" 2>/dev/null)"
+check_true "…and no staging directory left behind" no_staging_left
 
 section "create reports recovery commands after remote failures"
 rm -rf -- "$REPO_DIR"
