@@ -132,7 +132,7 @@ F02 can resume whenever its disposable environment exists; repeat affected scena
 | Urgent | F10 | Encrypted incoming-change discovery | F08, F09 | Completed |
 | Urgent | F11 | Save protection for incoming secrets | F10 | Completed |
 | Urgent | F12 | Consistent repository readiness and status | None | Completed |
-| Urgent | F13 | Secret deletion discovery | None | Pending |
+| Urgent | F13 | Secret deletion discovery | None | Completed |
 | Urgent | F14 | Secret-only recovery | F12, F13 | Pending |
 | Important | F15 | Independent pending Settings edits | None | Pending |
 | Important | F16 | Controller recovery after startup failure | None | Pending |
@@ -359,16 +359,26 @@ F02 can resume whenever its disposable environment exists; repeat affected scena
 
 - Finding and scope: discovery portion of R06; history path selection and deleted-entry listing.
 - Tasks:
-  - [ ] Include vault-only commits in relevant history queries.
-  - [ ] Identify deleted secret entries from the appropriate historical index.
-  - [ ] Report locked or unreadable history explicitly without exposing plaintext.
+  - [x] Include vault-only commits in relevant history queries.
+  - [x] Identify deleted secret entries from the appropriate historical index.
+  - [x] Report locked or unreadable history explicitly without exposing plaintext.
 - Dependencies: none.
 - Acceptance: a secret-only deletion appears as recoverable when decryptable.
   Missing keys produce an actionable limitation instead of an empty success result.
 - Required checks: `tests/test-crypto.sh`, `tests/test-journey.sh`, `tests/test-leaks.sh`;
   cover mixed config/secret deletion, vault-only deletion, and unavailable historical keys.
 - Estimate and risk: 3–5 hours; key rotation and Git history may limit recoverability.
-- State: Pending.
+- State: Completed.
+- Evidence: `deleted_rows` now appends vault rows resolved from parent
+  indexes (blob-deletion driven, newest first, skipped when already restored);
+  undecryptable vault history prints an explicit short-sha warning without
+  values; `recover_vault` names the limiting commit instead of succeeding
+  silently. `tests/test-crypto.sh` passes 138 checks with mixed, vault-only,
+  locked, and recover-finds cases. `tests/test-journey.sh` passes 76 checks.
+  `tests/test-leaks.sh` passes 18 checks. `manifest.json` 0.42.8 -> 0.42.9.
+- Changed files: `bin/lib/history.sh`, `tests/test-crypto.sh`,
+  `manifest.json`, `docs/TASKS.md`, `docs/ROADMAP.md`.
+- Commit: this commit.
 
 ### F14. Recover a secret-only deletion
 
@@ -601,7 +611,7 @@ This update changes only `TASKS.md`, `TASKS-HISTORY.md`, and `ROADMAP.md`.
 
 ## Next action
 
-- Next phase: **F13**, secret deletion discovery.
-- Resume command: `$taskflow run F13`.
+- Next phase: **F14**, secret-only recovery.
+- Resume command: `$taskflow run F14`.
 - Recommended effort: **medium**.
 - F02 remains blocked independently; do not wait for its environment before addressing confirmed data risks.

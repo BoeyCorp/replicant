@@ -22,6 +22,52 @@ rel_for_repo_path() {
   esac
 }
 
+# _deleted_vault_rows <limit>: "<sha>\t<epoch>\t<date>\t<subject>\t<id>" for
+# each secret ID a commit removed from the encrypted index that the repo does
+# not hold now. Driven by deleted blob files, resolved through the parent
+# index; a secret deleted twice is named once, at its newest deletion.
+# Locked or unreadable vault history is reported on stderr (short sha and
+# remedy only, never values) and skipped, never silently treated as empty.
+_deleted_vault_rows() {
+  local limit="$1" vsha
+  local -a vshas=()
+  mapfile -t vshas < <(git -C "$REPO_DIR" log -n "$limit" --diff-filter=D --format=%H -- vault/blobs 2>/dev/null || true)
+  (( ${#vshas[@]} )) || return 0
+  local head_idx="" head_ok=0
+  if head_idx=$(vault_index_decrypt 2>/dev/null); then head_ok=1; fi
+  local -A vse seen=()
+  local pidx cidx removed id meta epoch date subject
+  for vsha in "${vshas[@]}"; do
+    [[ -n "$vsha" ]] || continue
+    [[ -n "${vse[$vsha]:-}" ]] && continue
+    vse[$vsha]=1
+    if ! pidx=$(_incoming_before_index "$vsha^" 2>/dev/null); then
+      printf '  · cannot read vault history for %s — import the key that encrypted it to list secret deletions\n' "${vsha:0:7}" >&2
+      continue
+    fi
+    if ! cidx=$(_incoming_before_index "$vsha" 2>/dev/null); then
+      printf '  · cannot read vault history for %s — import the key that encrypted it to list secret deletions\n' "${vsha:0:7}" >&2
+      continue
+    fi
+    removed=$(jq -r --argjson p "$pidx" --argjson c "$cidx" -n '
+      (($p.secrets // []) | map(.id)) - (($c.secrets // []) | map(.id)) | .[]' 2>/dev/null || true)
+    [[ -n "$removed" ]] || continue
+    meta=$(git -C "$REPO_DIR" show -s --date=format:'%d %b %H:%M' --format='%H%x1f%at%x1f%ad%x1f%s' "$vsha" 2>/dev/null || true)
+    [[ -n "$meta" ]] || continue
+    IFS=$'\x1f' read -r _vsha epoch date subject <<<"$meta"
+    while IFS= read -r id; do
+      [[ -n "$id" ]] || continue
+      [[ -n "${seen[$id]:-}" ]] && continue
+      if (( head_ok )); then
+        jq -e --arg id "$id" '.secrets[] | select(.id == $id)' <<<"$head_idx" >/dev/null 2>&1 && continue
+      fi
+      seen[$id]=1
+      printf '%s\t%s\t%s\t%s\t%s\n' "$vsha" "$epoch" "$date" "$subject" "$id"
+    done <<<"$removed"
+  done
+  return 0
+}
+
 # deleted_rows [limit]: "<sha>\t<epoch>\t<date>\t<subject>\t<repo-path>" for
 # each copy that a commit deleted and that the repo does not hold now. A path
 # deleted twice is named once, at its newest deletion. A move between scopes is
@@ -49,6 +95,10 @@ deleted_rows() {
   done < <(git -C "$REPO_DIR" log -n "$limit" --diff-filter=D --name-only \
              --date=format:'%d %b %H:%M' --format=$'\x1e%H\x1f%at\x1f%ad\x1f%s' \
              -- "${specs[@]}" 2>/dev/null)
+  # Vault-only deletions never touch those paths: a removed secret changes
+  # vault/index.age and deletes its blob. They resolve to secret IDs through
+  # the parent index, newest deletion first, same row shape as above.
+  _deleted_vault_rows "$limit"
 }
 
 # core_deleted [--json]: the copies that left the repo, grouped by the commit
@@ -140,14 +190,25 @@ recover_vault() {
   pdir=$(mktemp -d) || return 1
   cdir=$(mktemp -d) || { rm -rf -- "$pdir"; return 1; }
   local parent_idx="" child_idx="" removed="" current=""
+  local parent_has=0 child_has=0
   if git -C "$REPO_DIR" show "$sha^:vault/index.age" > "$pdir/index.age" 2>/dev/null; then
+    parent_has=1
     parent_idx=$(age -d -i "$(vault_identity_file)" -o - "$pdir/index.age" 2>/dev/null || true)
   fi
   if git -C "$REPO_DIR" show "$sha:vault/index.age" > "$cdir/index.age" 2>/dev/null; then
+    child_has=1
     child_idx=$(age -d -i "$(vault_identity_file)" -o - "$cdir/index.age" 2>/dev/null || true)
   fi
   rm -rf -- "$pdir" "$cdir"
+  if (( parent_has )) && [[ -z "$parent_idx" ]]; then
+    echo "  · cannot read vault history for ${sha:0:7} — secrets stay as they are until the key that encrypted them is imported" >&2
+    return 0
+  fi
   [[ -n "$parent_idx" ]] || return 0
+  if (( child_has )) && [[ -z "$child_idx" ]]; then
+    echo "  · cannot read vault history for ${sha:0:7} — secrets stay as they are until the key that encrypted them is imported" >&2
+    return 0
+  fi
   [[ -n "$child_idx" ]] || child_idx='{"version":2,"secrets":[]}'
   removed=$(jq -r --argjson p "$parent_idx" --argjson c "$child_idx" -n '
     (($p.secrets // []) | map(.id)) - (($c.secrets // []) | map(.id)) | .[]' 2>/dev/null || true)

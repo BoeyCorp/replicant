@@ -403,4 +403,37 @@ core_backup >/dev/null 2>&1
 git -C "$REPO_DIR" add -A vault/ >/dev/null 2>&1
 check_true "a commit of ciphertext passes the hook" git -C "$REPO_DIR" commit -qm "vault through the hook"
 
+section "deleted history finds secret-only deletions"
+printf 'FIRST=crypto-fixture-gone\n' > "$HOME/.config/environment.d/60-secrets.conf"
+core_backup >/dev/null 2>&1
+git -C "$REPO_DIR" add -A >/dev/null 2>&1
+git -C "$REPO_DIR" commit -qm "gone base" >/dev/null 2>&1 || true
+rm -f "$HOME/.config/environment.d/60-secrets.conf" "$HOME/.config/hypr/input.lua"
+core_forget env/60-secrets.conf >/dev/null 2>&1
+core_forget hypr/input.lua >/dev/null 2>&1
+git -C "$REPO_DIR" add -A >/dev/null 2>&1
+git -C "$REPO_DIR" commit -qm "mixed deletion" >/dev/null 2>&1 || true
+mixed_sha=$(git -C "$REPO_DIR" rev-parse HEAD 2>/dev/null)
+check_contains "a mixed deletion lists the secret" "env/60-secrets.conf" "$(core_deleted 2>&1)"
+check_contains "…and the config copy" "config/hypr/input.lua" "$(core_deleted 2>&1)"
+check "…grouped under one commit" "$mixed_sha" "$(core_deleted --json 2>/dev/null | jq -r --arg id "env/60-secrets.conf" '.[] | select(.files | index($id)) | .sha')"
+printf 'FIRST=crypto-fixture-back\n' > "$HOME/.config/environment.d/60-secrets.conf"
+core_backup >/dev/null 2>&1
+git -C "$REPO_DIR" add -A >/dev/null 2>&1
+git -C "$REPO_DIR" commit -qm "gone back" >/dev/null 2>&1 || true
+rm -f "$HOME/.config/environment.d/60-secrets.conf"
+core_forget env/60-secrets.conf >/dev/null 2>&1
+git -C "$REPO_DIR" add -A >/dev/null 2>&1
+git -C "$REPO_DIR" commit -qm "vault-only deletion" >/dev/null 2>&1 || true
+vault_sha=$(git -C "$REPO_DIR" rev-parse HEAD 2>/dev/null)
+check_contains "a vault-only deletion is listed" "env/60-secrets.conf" "$(core_deleted 2>&1)"
+check "…in JSON with the secret file" "env/60-secrets.conf" "$(core_deleted --json 2>/dev/null | jq -r --arg s "$vault_sha" '.[] | select(.sha == $s) | .files[0]')"
+check_contains "…and recover finds it" "env/60-secrets.conf" "$(core_recover "$vault_sha" 2>&1 || true)"
+mv "$KEYS" "$TMP/identity.keep"
+locked_out=$(core_deleted 2>&1)
+check_contains "locked history says so explicitly" "cannot read vault history" "$locked_out"
+check "…without revealing values" "0" "$(printf '%s' "$locked_out" | grep -c crypto-fixture || true)"
+check "…and JSON stays valid" "0" "$(core_deleted --json 2>/dev/null | jq empty >/dev/null 2>&1; echo $?)"
+mv "$TMP/identity.keep" "$KEYS"
+
 summary

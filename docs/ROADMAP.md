@@ -1,10 +1,14 @@
 # Roadmap
 
 The executable plan, dependencies, acceptance criteria, and evidence are in [TASKS.md](TASKS.md).
-F06–F12 are implemented in this checkout; F13 is next.
+F06–F13 are implemented in this checkout; F14 is next.
 
 ## Completed
 
+- F13 lists vault-only deletions as secret IDs and reports unreadable vault
+  history explicitly without values. Covered in `tests/test-crypto.sh` (138
+  checks), `tests/test-journey.sh` (76 checks), and `tests/test-leaks.sh` (18
+  checks). Shipped as 0.42.9.
 - F12 enforces vault all-or-nothing readiness, reports invalid repos as not
   initialized in every status form without synthesizing entries, and rejects
   incomplete staged clones. Covered in `tests/test-schema.sh` (38 checks),
@@ -86,7 +90,7 @@ F06–F12 are implemented in this checkout; F13 is next.
 4. **Evolution, F26:** optionally add direct Restore section navigation from the F05 proposal.
    Keep the existing four tabs; do not treat this proposal as a required defect correction.
 
-Start with **F13**. F02 can resume independently when its disposable environment is available.
+Start with **F14**. F02 can resume independently when its disposable environment is available.
 Production readiness still requires F02 and the real-runtime evidence in F23.
 No phase authorizes remote publication or changes to the active installation through this plan.
 
