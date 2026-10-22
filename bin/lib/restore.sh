@@ -378,10 +378,19 @@ restore_apply() {
   apply=$(apply_for_category "$area")
   if (( changed > 0 )) && [[ -n "$apply" ]]; then
     echo "  → $apply" >&2
-    bash -c "$apply" >/dev/null 2>&1 || warn "'$apply' failed — you may need to run it yourself"
+    if ! bash -c "$apply" >/dev/null 2>&1; then
+      warn "'$apply' failed — files are restored but not applied; run '$apply' yourself or retry restore"
+      printf '%s\n' "$changed"
+      return 1
+    fi
     if [[ "$apply" == "hyprctl reload" ]]; then
       errs=$(hyprctl configerrors 2>/dev/null | grep -v '^no errors' || true)
-      if [[ -n "$errs" ]]; then warn "Hyprland reported config errors after the reload:"; echo "$errs" >&2; fi
+      if [[ -n "$errs" ]]; then
+        warn "Hyprland reported config errors after the reload: files are restored but not cleanly applied"
+        echo "$errs" >&2
+        printf '%s\n' "$changed"
+        return 1
+      fi
     fi
   fi
   printf '%s\n' "$changed"
@@ -405,9 +414,14 @@ core_restore_file() {
     if tree_same "$repo_path" "$src"; then
       echo "$rel already matches the copy in your repo" >&2; return 0
     fi
-    DRY=0 install_tree "$repo_path" "$src" "$(restore_mode_for "$rel")"
+    DRY=0 install_tree "$repo_path" "$src" "$(restore_mode_for "$rel")" || return 1
     local dapply; dapply=$(apply_for_category "$(category_for_rel "$rel")")
-    [[ -n "$dapply" ]] && bash -c "$dapply" >/dev/null 2>&1 || true
+    if [[ -n "$dapply" ]]; then
+      if ! bash -c "$dapply" >/dev/null 2>&1; then
+        echo "$rel restored but '$dapply' failed — run it yourself or retry restore" >&2
+        return 1
+      fi
+    fi
     return 0
   fi
   [[ -f "$repo_path" ]] || { echo "$rel is not saved in your repo yet" >&2; return 1; }
@@ -423,8 +437,13 @@ core_restore_file() {
     root_apply "$src" "$repo_path" "$(apply_for_category "$(category_for_rel "$rel")")"
     return
   fi
-  DRY=0 install_file "$repo_path" "$src" "$mode"
+  DRY=0 install_file "$repo_path" "$src" "$mode" || return 1
   local apply; apply=$(apply_for_category "$(category_for_rel "$rel")")
-  [[ -n "$apply" ]] && bash -c "$apply" >/dev/null 2>&1 || true
+  if [[ -n "$apply" ]]; then
+    if ! bash -c "$apply" >/dev/null 2>&1; then
+      echo "$rel restored but '$apply' failed — run it yourself or retry restore" >&2
+      return 1
+    fi
+  fi
   return 0
 }

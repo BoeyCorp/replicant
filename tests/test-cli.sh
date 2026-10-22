@@ -363,6 +363,20 @@ check "the file came back from the repo" "0" \
 check "…and the version it replaced is on disk" "1" \
   "$(ls "$HOME/.config/hypr/input.lua".bak.* 2>/dev/null | wc -l)"
 
+section "a failed apply does not report success"
+printf 'edited before failed apply\n' > "$HOME/.config/hypr/input.lua"
+printf '#!/bin/bash\nexit 1\n' > "$TMP/stubbin/hyprctl"
+chmod +x "$TMP/stubbin/hyprctl"
+fail_out=$(run restore-file hypr/input.lua 2>&1); fail_rc=$?
+check "…restore-file fails when the apply fails" "1" "$([ $fail_rc -ne 0 ] && echo 1 || echo 0)"
+check_contains "…naming the failed apply" "hyprctl reload" "$fail_out"
+check "…but the file is still restored" "0" \
+  "$(cmp -s "$HOME/.config/hypr/input.lua" "$REPO/config/hypr/input.lua"; echo $?)"
+check "…with its backup kept" "1" \
+  "$([ $(ls "$HOME/.config/hypr/input.lua".bak.* 2>/dev/null | wc -l) -ge 2 ] && echo 1 || echo 0)"
+printf '#!/bin/bash\nexit 0\n' > "$TMP/stubbin/hyprctl"
+chmod +x "$TMP/stubbin/hyprctl"
+
 section "shortcuts"
 mkdir -p "$HOME/.config/hypr"
 printf 'o.bind("SUPER + J", "Journal", "obsidian")\n' > "$HOME/.config/hypr/bindings.lua"

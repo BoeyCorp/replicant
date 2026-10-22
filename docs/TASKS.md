@@ -468,16 +468,26 @@ F02 can resume whenever its disposable environment exists; repeat affected scena
 
 - Finding and scope: R17; restore results in `bin/lib/restore.sh`, CLI output, and panel feedback.
 - Tasks:
-  - [ ] Inject reload/apply failures after a successful file copy.
-  - [ ] Report copied, applied, and failed states consistently for single-file and full restores.
-  - [ ] Offer an apply retry that does not repeat the file overwrite or create misleading success feedback.
+  - [x] Inject reload/apply failures after a successful file copy.
+  - [x] Report copied, applied, and failed states consistently for single-file and full restores.
+  - [x] Offer an apply retry that does not repeat the file overwrite or create misleading success feedback.
 - Dependencies: none.
 - Acceptance: apply failure is visible and actionable; backups remain available.
   Existing successful restores and dry runs preserve their contract.
 - Required checks: `tests/test-journey.sh`, `tests/test-cli.sh`, `tests/test-settings.sh`,
   and `tests/test-usability.sh`; stub failing reload commands and verify returned results.
 - Estimate and risk: 4–6 hours; coordinate exit status and JSON/UI handling without hiding partial success.
-- State: Pending.
+- State: Completed.
+- Evidence: `restore_apply` and `core_restore_file` no longer suppress
+  apply failures: a failed `hyprctl reload` or config-error report returns 1
+  with `run '<apply>' yourself or retry restore`, while the copy and its
+  `.bak.<epoch>` remain. `tests/test-cli.sh` grows from 361 to 365 checks
+  with a failing-apply case. `tests/test-journey.sh` passes 76 checks,
+  `tests/test-settings.sh` passes 497 checks, and `tests/test-usability.sh`
+  passes 143 checks. `manifest.json` 0.42.12 -> 0.42.13.
+- Changed files: `bin/lib/restore.sh`, `tests/test-cli.sh`,
+  `manifest.json`, `docs/TASKS.md`, `docs/ROADMAP.md`.
+- Commit: this commit.
 
 ### F18. Keep visible search text synchronized
 
