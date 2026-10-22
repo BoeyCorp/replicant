@@ -129,7 +129,7 @@ F02 can resume whenever its disposable environment exists; repeat affected scena
 | Urgent | F07 | Restrictive secret and backup permissions | None | Completed |
 | Urgent | F08 | One effective secret scope | None | Completed |
 | Urgent | F09 | Durable incoming config markers | None | Completed |
-| Urgent | F10 | Encrypted incoming-change discovery | F08, F09 | Pending |
+| Urgent | F10 | Encrypted incoming-change discovery | F08, F09 | Completed |
 | Urgent | F11 | Save protection for incoming secrets | F10 | Pending |
 | Urgent | F12 | Consistent repository readiness and status | None | Pending |
 | Urgent | F13 | Secret deletion discovery | None | Pending |
@@ -278,9 +278,9 @@ F02 can resume whenever its disposable environment exists; repeat affected scena
 
 - Finding and scope: discovery portion of R01; incoming and vault metadata.
 - Tasks:
-  - [ ] Detect relevant vault changes across the before/after revisions of a pull.
-  - [ ] Identify changed secret IDs when the required metadata can be decrypted.
-  - [ ] Preserve an unresolved state when keys are unavailable or metadata cannot be read.
+  - [x] Detect relevant vault changes across the before/after revisions of a pull.
+  - [x] Identify changed secret IDs when the required metadata can be decrypted.
+  - [x] Preserve an unresolved state when keys are unavailable or metadata cannot be read.
 - Dependencies: F08 and F09.
 - Acceptance: ciphertext changes cannot disappear from pending state.
   Keyless detection fails safely without revealing secret values or falsely marking the vault synchronized.
@@ -288,7 +288,17 @@ F02 can resume whenever its disposable environment exists; repeat affected scena
   include keyless pulls, metadata-only changes, blob changes, and consecutive pulls.
 - Estimate and risk: 4–6 hours; encryption can change bytes without changing plaintext.
   Use existing local state and keep private metadata out of public logs.
-- State: Pending.
+- State: Completed.
+- Evidence: `core_incoming` now resolves vault diffs to secret IDs via
+  decrypted before/after indexes plus blob-to-ID mapping, and falls back to
+  every tracked secret when metadata is unreadable. Merge/prune from F09 keeps
+  unresolved rows across consecutive pulls and clears resolved ones.
+  `tests/test-crypto.sh` passes 122 checks with blob, keyless, metadata-only,
+  and consecutive cases. `tests/test-state.sh` passes 111 checks.
+  `tests/test-journey.sh` passes 76 checks. `manifest.json` 0.42.5 -> 0.42.6.
+- Changed files: `bin/lib/incoming.sh`, `tests/test-crypto.sh`,
+  `manifest.json`, `docs/TASKS.md`, `docs/ROADMAP.md`.
+- Commit: this commit.
 
 ### F11. Protect incoming secrets during save
 
@@ -566,7 +576,7 @@ This update changes only `TASKS.md`, `TASKS-HISTORY.md`, and `ROADMAP.md`.
 
 ## Next action
 
-- Next phase: **F10**, encrypted incoming-change discovery.
-- Resume command: `$taskflow run F10`.
+- Next phase: **F11**, save protection for incoming secrets.
+- Resume command: `$taskflow run F11`.
 - Recommended effort: **medium**.
 - F02 remains blocked independently; do not wait for its environment before addressing confirmed data risks.

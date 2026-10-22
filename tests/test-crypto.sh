@@ -319,6 +319,57 @@ check "…as shared" "shared" \
   "$(vault_index_decrypt 2>/dev/null | jq -r '.secrets[] | select(.id=="env/60-secrets.conf") | .scope')"
 check_false "a secret cannot use the profile scope" core_scope env/60-secrets.conf profile
 
+section "incoming vault changes are detected across a pull"
+printf 'FIRST=crypto-fixture-incoming-base\n' > "$HOME/.config/environment.d/60-secrets.conf"
+core_backup >/dev/null 2>&1
+git -C "$REPO_DIR" add -A >/dev/null 2>&1
+git -C "$REPO_DIR" commit -qm "incoming base" >/dev/null 2>&1 || true
+printf 'FIRST=crypto-fixture-incoming-remote\n' > "$HOME/.config/environment.d/60-secrets.conf"
+core_backup >/dev/null 2>&1
+git -C "$REPO_DIR" add -A >/dev/null 2>&1
+git -C "$REPO_DIR" commit -qm "incoming remote" >/dev/null 2>&1 || true
+incoming_after=$(git -C "$REPO_DIR" rev-parse HEAD 2>/dev/null)
+incoming_before=$(git -C "$REPO_DIR" rev-parse HEAD~1 2>/dev/null)
+printf 'FIRST=crypto-fixture-incoming-base\n' > "$HOME/.config/environment.d/60-secrets.conf"
+core_incoming "$incoming_before" "$incoming_after" >"$TMP/incoming.out" 2>&1
+incoming_out=$(cat "$TMP/incoming.out" 2>/dev/null || true)
+check_contains "a blob change names the secret" "env/60-secrets.conf" "$incoming_out"
+check "…and records it" "env/60-secrets.conf" "$(cat "$REPLICANT_HOME/incoming" 2>/dev/null)"
+check "…with no plaintext in the report" "0" "$(printf '%s' "$incoming_out" | grep -c crypto-fixture || true)"
+check "…and the row asks for restore" "incoming" \
+  "$(build_secrets_json 2>/dev/null | jq -r '[.[] | select(.id=="env/60-secrets.conf")][0].sync_state')"
+core_incoming "$incoming_after" "$incoming_after" >/dev/null 2>&1
+check "a consecutive pull keeps the unresolved marker" "env/60-secrets.conf" "$(cat "$REPLICANT_HOME/incoming" 2>/dev/null)"
+core_restore_file env/60-secrets.conf >/dev/null 2>&1
+core_incoming "$incoming_after" "$incoming_after" >/dev/null 2>&1
+check "a restore clears the marker" "" "$(cat "$REPLICANT_HOME/incoming" 2>/dev/null || true)"
+mv "$KEYS" "$TMP/identity.keep"
+core_incoming "$incoming_before" "$incoming_after" >"$TMP/keyless.out" 2>&1
+keyless_out=$(cat "$TMP/keyless.out" 2>/dev/null || true)
+check_contains "a keyless pull still names the row" "env/60-secrets.conf" "$keyless_out"
+check "…without revealing values" "0" "$(printf '%s' "$keyless_out" | grep -c crypto-fixture || true)"
+check "…and the locked row is not synchronized" "locked" \
+  "$(build_secrets_json 2>/dev/null | jq -r '[.[] | select(.id=="env/60-secrets.conf")][0].sync_state')"
+mv "$TMP/identity.keep" "$KEYS"
+core_scope env/60-secrets.conf off >/dev/null 2>&1
+git -C "$REPO_DIR" add -A vault/ >/dev/null 2>&1
+git -C "$REPO_DIR" commit -qm "incoming metadata off" >/dev/null 2>&1 || true
+meta_after=$(git -C "$REPO_DIR" rev-parse HEAD 2>/dev/null)
+meta_before=$(git -C "$REPO_DIR" rev-parse HEAD~1 2>/dev/null)
+core_incoming "$meta_before" "$meta_after" >"$TMP/meta.out" 2>&1
+meta_out=$(cat "$TMP/meta.out" 2>/dev/null || true)
+check_contains "a metadata-only change names the secret" "env/60-secrets.conf" "$meta_out"
+check "…without revealing values" "0" "$(printf '%s' "$meta_out" | grep -c crypto-fixture || true)"
+check "…and the row is off, not synchronized" "off" \
+  "$(build_entries_json 2>/dev/null | jq -r '.[] | select(.id=="env/60-secrets.conf") | .sync_state')"
+core_scope env/60-secrets.conf shared >/dev/null 2>&1
+git -C "$REPO_DIR" add -A vault/ >/dev/null 2>&1
+git -C "$REPO_DIR" commit -qm "incoming metadata shared" >/dev/null 2>&1 || true
+record_incoming
+check "clearing the record empties vault markers too" "" "$(cat "$REPLICANT_HOME/incoming" 2>/dev/null || true)"
+printf 'FIRST=crypto-fixture-incoming-remote\n' > "$HOME/.config/environment.d/60-secrets.conf"
+core_backup >/dev/null 2>&1
+
 section "the hook lets vault ciphertext through"
 printf 'FIRST=crypto-fixture-delta\n' > "$HOME/.config/environment.d/60-secrets.conf"
 core_backup >/dev/null 2>&1

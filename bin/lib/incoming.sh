@@ -171,6 +171,106 @@ _incoming_merge_prune() {
   return 0
 }
 
+# _incoming_vault_ids <before-rev> <after-rev> — secret IDs whose vault rows
+# changed across a pull. Prints one ID per line, never values, blob bytes, or
+# index JSON. Fails closed: when either side cannot be decrypted (no key,
+# corrupt or missing metadata), it prints every tracked secret ID instead of
+# nothing, so ciphertext changes cannot silently disappear. Callers merge the
+# result with config rows; the copies-still-differ check then hides rows that
+# already match, and locked rows stay locked rather than synchronized.
+_incoming_vault_ids() {
+  local before="$1" after="$2"
+  local -a vpaths=()
+  local p
+  while IFS= read -r p; do
+    [[ -n "$p" ]] || continue
+    case "$p" in
+      vault/index.age|vault/blobs/*.age) vpaths+=("$p") ;;
+    esac
+  done < <(git -C "$REPO_DIR" diff --name-only "$before" "$after" -- vault/ 2>/dev/null)
+  (( ${#vpaths[@]} )) || return 0
+  local after_json="" before_json=""
+  local after_ok=0 before_ok=0
+  if after_json=$(vault_index_decrypt 2>/dev/null); then
+    after_ok=1
+  fi
+  before_json=$(_incoming_before_index "$before" 2>/dev/null) && before_ok=1 || before_json=""
+  if (( after_ok && before_ok )); then
+    # Every ID in either side whose canonical row differs (added, removed,
+    # blob, scope, path, or source change).
+    local -a changed=()
+    local id a_row b_row
+    local -a all_ids=()
+    mapfile -t all_ids < <((jq -r '.secrets[].id' <<<"$after_json" 2>/dev/null; jq -r '.secrets[].id' <<<"$before_json" 2>/dev/null) | sort -u || true)
+    for id in ${all_ids[@]+"${all_ids[@]}"}; do
+      [[ -n "$id" ]] || continue
+      a_row=$(jq -c --arg id "$id" '.secrets[] | select(.id == $id) | {blob,scope,path,source}' <<<"$after_json" 2>/dev/null || true)
+      b_row=$(jq -c --arg id "$id" '.secrets[] | select(.id == $id) | {blob,scope,path,source}' <<<"$before_json" 2>/dev/null || true)
+      [[ "$a_row" != "$b_row" ]] || continue
+      changed+=("$id")
+    done
+    # Blob-only changes keep identical index rows (same blob ID, same scope):
+    # map changed blob files back to their IDs through the after index,
+    # falling back to the before index for deleted blobs.
+    local vp blob bid mid
+    for vp in "${vpaths[@]}"; do
+      case "$vp" in
+        vault/blobs/*.age)
+          blob=$(basename "$vp" .age)
+          [[ "$blob" =~ ^[0-9a-f]{32}$ ]] || continue
+          mid=$(jq -r --arg b "$blob" '.secrets[] | select(.blob == $b) | .id // empty' <<<"$after_json" 2>/dev/null | head -n1 || true)
+          [[ -z "$mid" ]] && mid=$(jq -r --arg b "$blob" '.secrets[] | select(.blob == $b) | .id // empty' <<<"$before_json" 2>/dev/null | head -n1 || true)
+          [[ -n "$mid" ]] || continue
+          changed+=("$mid")
+          ;;
+      esac
+    done
+    if (( ${#changed[@]} )); then
+      printf '%s\n' "${changed[@]}" | sort -u
+    fi
+    return 0
+  fi
+  # Keyless, corrupt, or missing metadata: mark every tracked secret so the
+  # pending state survives. IDs only, never values.
+  local -a broad=()
+  local entry rel
+  for entry in ${TRACKED_SECRETS[@]+"${TRACKED_SECRETS[@]}"}; do
+    rel="${entry##*:}"
+    [[ -n "$rel" ]] && broad+=("$rel")
+  done
+  if (( ${#broad[@]} )); then
+    printf '%s\n' "${broad[@]}" | sort -u
+  fi
+  return 0
+}
+
+# _incoming_before_index <rev> — the vault index JSON at a git revision,
+# decrypted and validated. Prints JSON on success, nothing on failure.
+_incoming_before_index() {
+  local rev="$1" tmp idf plain
+  tmp=$(mktemp) || return 1
+  if ! git -C "$REPO_DIR" show "$rev:vault/index.age" > "$tmp" 2>/dev/null; then
+    rm -f -- "$tmp"
+    printf '{"version":2,"secrets":[]}\n'
+    return 0
+  fi
+  idf=$(vault_identity_file 2>/dev/null) || { rm -f -- "$tmp"; return 1; }
+  [[ -f "$idf" ]] || { rm -f -- "$tmp"; return 1; }
+  crypto_require_age 2>/dev/null || { rm -f -- "$tmp"; return 1; }
+  plain=$(mktemp) || { rm -f -- "$tmp"; return 1; }
+  if ! age -d -i "$idf" -o "$plain" "$tmp" 2>/dev/null; then
+    rm -f -- "$tmp" "$plain"
+    return 1
+  fi
+  rm -f -- "$tmp"
+  local content
+  content=$(cat -- "$plain" 2>/dev/null || true)
+  rm -f -- "$plain"
+  [[ -n "$content" ]] || return 1
+  vault_index_validate "$content" 2>/dev/null || return 1
+  printf '%s\n' "$content"
+}
+
 # Used by the replicant CLI wrapper
 # core_incoming <before-rev> <after-rev> — which tracked entries a pull moved.
 # Written down for the panel and printed for the caller.
@@ -207,9 +307,15 @@ core_incoming() {
   if (( ${#rels[@]} )); then
     mapfile -t uniq < <(printf '%s\n' "${rels[@]}" | sort -u)
   fi
-  _incoming_merge_prune ${uniq[@]+"${uniq[@]}"} || return 1
-  if (( ${#uniq[@]} )); then
-    printf '%s\n' "${uniq[@]}"
+  local -a vault_ids=()
+  mapfile -t vault_ids < <(_incoming_vault_ids "$before" "$after" 2>/dev/null || true)
+  local -a all_uniq=()
+  if (( ${#uniq[@]} || ${#vault_ids[@]} )); then
+    mapfile -t all_uniq < <(printf '%s\n' ${uniq[@]+"${uniq[@]}"} ${vault_ids[@]+"${vault_ids[@]}"} | sort -u)
+  fi
+  _incoming_merge_prune ${all_uniq[@]+"${all_uniq[@]}"} || return 1
+  if (( ${#all_uniq[@]} )); then
+    printf '%s\n' "${all_uniq[@]}"
   fi
   return 0
 }
