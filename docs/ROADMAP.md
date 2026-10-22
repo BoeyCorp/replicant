@@ -1,7 +1,7 @@
 # Roadmap
 
 The executable plan, dependencies, acceptance criteria, and evidence are in [TASKS.md](TASKS.md).
-F06–F25 are implemented in this checkout (F25 deferred: no bounded target); F26 remains optional.
+F06–F26 are implemented in this checkout (F25 deferred: no bounded target; F26 selected 2026-10-22, human review open in F02).
 
 ## Completed
 
@@ -104,10 +104,10 @@ F06–F25 are implemented in this checkout (F25 deferred: no bounded target); F2
    Verify the modal keyboard route before deciding whether it requires a correction.
 3. **Optimization, F23–F25:** make skipped validation visible, execute real runtime checks,
    benchmark initialized repositories, and improve one measured bottleneck when justified.
-4. **Evolution, F26:** optionally add direct Restore section navigation from the F05 proposal.
-   Keep the existing four tabs; do not treat this proposal as a required defect correction.
+4. **Evolution, F26:** direct Restore section navigation shipped as 0.43.0 (selected 2026-10-22).
+   The four tabs stay; disposable-session human review remains open in F02.
 
-Start with **F14**. F02 can resume independently when its disposable environment is available.
+All confirmed phases are implemented. F02 can resume independently when its disposable environment is available.
 Production readiness still requires F02 and the real-runtime evidence in F23.
 No phase authorizes remote publication or changes to the active installation through this plan.
 

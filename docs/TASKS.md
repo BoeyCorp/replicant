@@ -779,7 +779,7 @@ This update changes only `TASKS.md`, `TASKS-HISTORY.md`, and `ROADMAP.md`.
 
 ## Next action
 
-- Next phase: **F24**, representative status benchmark.
-- Resume command: `$taskflow run F24`.
-- Recommended effort: **medium**.
-- F02 remains blocked independently; F25 waits on F24 profiling; F26 stays optional.
+- Next phase: none. F06–F26 are implemented (F25 deferred by measurement, F26 human review open).
+- Resume command: `$taskflow run F02` when a disposable graphical session is available.
+- Recommended effort: **low** (verification only).
+- F02 remains blocked independently; it is the only open verification.
