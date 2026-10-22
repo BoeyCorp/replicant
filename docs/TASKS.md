@@ -130,7 +130,7 @@ F02 can resume whenever its disposable environment exists; repeat affected scena
 | Urgent | F08 | One effective secret scope | None | Completed |
 | Urgent | F09 | Durable incoming config markers | None | Completed |
 | Urgent | F10 | Encrypted incoming-change discovery | F08, F09 | Completed |
-| Urgent | F11 | Save protection for incoming secrets | F10 | Pending |
+| Urgent | F11 | Save protection for incoming secrets | F10 | Completed |
 | Urgent | F12 | Consistent repository readiness and status | None | Pending |
 | Urgent | F13 | Secret deletion discovery | None | Pending |
 | Urgent | F14 | Secret-only recovery | F12, F13 | Pending |
@@ -304,16 +304,27 @@ F02 can resume whenever its disposable environment exists; repeat affected scena
 
 - Finding and scope: mutation portion of R01; single, bulk, automatic, and transactional vault saves.
 - Tasks:
-  - [ ] Reproduce stale local content overwriting a newer encrypted incoming copy.
-  - [ ] Apply the pending-state guard from F10 to every save entry point.
-  - [ ] Keep any explicit replacement action distinct and clear pending state only after success.
+  - [x] Reproduce stale local content overwriting a newer encrypted incoming copy.
+  - [x] Apply the pending-state guard from F10 to every save entry point.
+  - [x] Keep any explicit replacement action distinct and clear pending state only after success.
 - Dependencies: F10.
 - Acceptance: ordinary saves preserve incoming ciphertext and leave a useful unresolved result.
   A successful restore or explicit authorized replacement resolves the marker.
 - Required checks: `tests/test-save.sh`, `tests/test-bulk-vault.sh`, `tests/test-transaction.sh`,
   and `tests/test-interruptions.sh`; assert content, markers, and transaction recovery.
 - Estimate and risk: 4–6 hours; protect concurrent and interrupted operations without bypassing journals.
-- State: Pending.
+- State: Completed.
+- Evidence: `vault_save_all` holds back incoming secrets whose copies differ,
+  preserving ciphertext and reporting restore/save-file; explicit `snapshot_one`
+  still overrules and resolves via copies-match plus next-pull prune.
+  `tests/test-crypto.sh` passes 129 checks with hold-back, explicit, and
+  resolution cases. `tests/test-save.sh` passes 75 checks.
+  `tests/test-bulk-vault.sh` passes 13 checks. `tests/test-transaction.sh`
+  passes 73 checks. `tests/test-interruptions.sh` passes 12 checks.
+  `manifest.json` 0.42.6 -> 0.42.7.
+- Changed files: `bin/lib/crypto.sh`, `tests/test-crypto.sh`,
+  `manifest.json`, `docs/TASKS.md`, `docs/ROADMAP.md`.
+- Commit: this commit.
 
 ### F12. Enforce repository readiness consistently
 
@@ -576,7 +587,7 @@ This update changes only `TASKS.md`, `TASKS-HISTORY.md`, and `ROADMAP.md`.
 
 ## Next action
 
-- Next phase: **F11**, save protection for incoming secrets.
-- Resume command: `$taskflow run F11`.
+- Next phase: **F12**, consistent repository readiness and status.
+- Resume command: `$taskflow run F12`.
 - Recommended effort: **medium**.
 - F02 remains blocked independently; do not wait for its environment before addressing confirmed data risks.

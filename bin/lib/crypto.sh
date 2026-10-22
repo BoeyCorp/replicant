@@ -430,8 +430,8 @@ vault_save_all() {
   local idx rec entry src rel
   idx=$(vault_index_decrypt) || return 1
   rec=$(vault_recipient) || return 1
-  local -a errs=() new_blobs=()
-  local scopied=0 old_blob new_blob vscope
+  local -a errs=() new_blobs=() held_rels=()
+  local scopied=0 held=0 old_blob new_blob vscope blobfile
   for entry in "${TRACKED_SECRETS[@]}"; do
     src="${entry%%:*}"; rel="${entry##*:}"
     vscope=$(vault_index_scope "$idx" "$rel")
@@ -444,6 +444,13 @@ vault_save_all() {
       continue
     elif [[ -f $src ]]; then
       old_blob=$(vault_index_blob "$idx" "$rel")
+      if [[ -n "$old_blob" ]]; then
+        blobfile="$(vault_blobs_dir)/$old_blob.age"
+        if [[ -f "$blobfile" ]] && is_incoming_rel "$rel" && ! vault_blob_same "$blobfile" "$src" 2>/dev/null; then
+          held=$((held + 1)); held_rels+=("$rel")
+          continue
+        fi
+      fi
       if idx=$(vault_save_entry "$src" "$rel" "$idx"); then
         new_blob=$(vault_index_blob "$idx" "$rel")
         [[ -n "$old_blob" ]] || new_blobs+=("$(vault_blobs_dir)/$new_blob.age")
@@ -455,6 +462,11 @@ vault_save_all() {
       printf '  · missing: %s\n' "${src/#$HOME/\~}" >&2
     fi
   done
+  if (( held > 0 )); then
+    printf '  · held back %s another machine changed — '"'"'restore --apply'"'"' brings them here:\n' "$(plural "$held" secret)" >&2
+    printf '      %s\n' "${held_rels[@]}" >&2
+    printf '    (to save this machine'"'"'s version instead: '"'"'save-file <id>'"'"')\n' >&2
+  fi
   if (( ${#errs[@]} )); then
     # Blobs written for brand-new secrets above are referenced by nothing now
     # that the index is not landing: remove them rather than littering the

@@ -369,6 +369,33 @@ record_incoming
 check "clearing the record empties vault markers too" "" "$(cat "$REPLICANT_HOME/incoming" 2>/dev/null || true)"
 printf 'FIRST=crypto-fixture-incoming-remote\n' > "$HOME/.config/environment.d/60-secrets.conf"
 core_backup >/dev/null 2>&1
+git -C "$REPO_DIR" add -A >/dev/null 2>&1
+git -C "$REPO_DIR" commit -qm "incoming hold base" >/dev/null 2>&1 || true
+
+section "ordinary saves hold back incoming secrets"
+printf 'FIRST=crypto-fixture-hold-remote\n' > "$HOME/.config/environment.d/60-secrets.conf"
+core_backup >/dev/null 2>&1
+git -C "$REPO_DIR" add -A >/dev/null 2>&1
+git -C "$REPO_DIR" commit -qm "hold remote" >/dev/null 2>&1 || true
+hold_after=$(git -C "$REPO_DIR" rev-parse HEAD 2>/dev/null)
+hold_before=$(git -C "$REPO_DIR" rev-parse HEAD~1 2>/dev/null)
+printf 'FIRST=crypto-fixture-hold-stale\n' > "$HOME/.config/environment.d/60-secrets.conf"
+core_incoming "$hold_before" "$hold_after" >/dev/null 2>&1
+hold_out=$(core_backup 2>&1 || true)
+check_contains "an ordinary save reports the hold-back" "held back" "$hold_out"
+check_contains "…naming restore" "restore" "$hold_out"
+check "…preserving the incoming ciphertext" "1" \
+  "$(age -d -i "$KEYS" "$REPO_DIR/vault/blobs/$(vault_index_decrypt 2>/dev/null | jq -r '.secrets[] | select(.id=="env/60-secrets.conf") | .blob').age" 2>/dev/null | grep -c crypto-fixture-hold-remote || true)"
+check "…keeping the marker" "env/60-secrets.conf" "$(cat "$REPLICANT_HOME/incoming" 2>/dev/null)"
+check "…with no plaintext in the report" "0" "$(printf '%s' "$hold_out" | grep -c crypto-fixture || true)"
+snapshot_one env/60-secrets.conf >/dev/null 2>&1
+check "an explicit save overrules the hold-back" "1" \
+  "$(age -d -i "$KEYS" "$REPO_DIR/vault/blobs/$(vault_index_decrypt 2>/dev/null | jq -r '.secrets[] | select(.id=="env/60-secrets.conf") | .blob').age" 2>/dev/null | grep -c crypto-fixture-hold-stale || true)"
+git -C "$REPO_DIR" add -A vault/ >/dev/null 2>&1
+git -C "$REPO_DIR" commit -qm "hold explicit" >/dev/null 2>&1 || true
+explicit_head=$(git -C "$REPO_DIR" rev-parse HEAD 2>/dev/null)
+core_incoming "$explicit_head" "$explicit_head" >/dev/null 2>&1
+check "…resolving the marker after commit" "" "$(cat "$REPLICANT_HOME/incoming" 2>/dev/null || true)"
 
 section "the hook lets vault ciphertext through"
 printf 'FIRST=crypto-fixture-delta\n' > "$HOME/.config/environment.d/60-secrets.conf"

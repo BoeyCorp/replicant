@@ -1,10 +1,16 @@
 # Roadmap
 
 The executable plan, dependencies, acceptance criteria, and evidence are in [TASKS.md](TASKS.md).
-F06–F10 are implemented in this checkout; F11 is next.
+F06–F11 are implemented in this checkout; F12 is next.
 
 ## Completed
 
+- F11 holds back incoming secrets on ordinary saves and lets explicit saves
+  overrule: ciphertext preserved, markers kept until copies match, then
+  pruned. Covered in `tests/test-crypto.sh` (129 checks),
+  `tests/test-save.sh` (75 checks), `tests/test-bulk-vault.sh` (13 checks),
+  `tests/test-transaction.sh` (73 checks), and `tests/test-interruptions.sh`
+  (12 checks). Shipped as 0.42.7.
 - F10 detects vault changes across pulls and resolves them to secret IDs, with
   a tracked-secrets fallback when metadata is unreadable. Covered in
   `tests/test-crypto.sh` (122 checks), `tests/test-state.sh` (111 checks),
@@ -74,7 +80,7 @@ F06–F10 are implemented in this checkout; F11 is next.
 4. **Evolution, F26:** optionally add direct Restore section navigation from the F05 proposal.
    Keep the existing four tabs; do not treat this proposal as a required defect correction.
 
-Start with **F11**. F02 can resume independently when its disposable environment is available.
+Start with **F12**. F02 can resume independently when its disposable environment is available.
 Production readiness still requires F02 and the real-runtime evidence in F23.
 No phase authorizes remote publication or changes to the active installation through this plan.
 
