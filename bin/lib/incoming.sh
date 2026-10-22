@@ -122,9 +122,64 @@ count_changes() {
   printf '%s %s %s %s\n' "$n_unsaved" "$n_incoming" "$n_locked" "$n_missing"
 }
 
+# _incoming_merge_prune [rel...] — merge new markers with the existing file
+# and drop resolved ones. New rels come from the just-finished pull; existing
+# ones are unresolved work from earlier pulls. A marker clears only after a
+# verified resolution: the registry row exists and its copies still differ
+# (unsaved). A restore and a deliberate save over the marker both make the
+# copies match, so both count as resolution. Unknown ids (no registry row)
+# clear too: there is no row to act on. When the registry cannot be read,
+# nothing is dropped — the merge still lands, so a later pull cannot wipe
+# unresolved work.
+_incoming_merge_prune() {
+  local -a fresh=("$@") keys=() keep=()
+  local k line
+  if [[ -f "$INCOMING_FILE" ]]; then
+    while IFS= read -r line || [[ -n "$line" ]]; do
+      [[ -z "$line" || "$line" == \#* ]] && continue
+      keys+=("$line")
+    done < "$INCOMING_FILE"
+  fi
+  for k in ${fresh[@]+"${fresh[@]}"}; do
+    [[ -n "$k" ]] && keys+=("$k")
+  done
+  local -a cands=()
+  if (( ${#keys[@]} )); then
+    mapfile -t cands < <(printf '%s\n' "${keys[@]}" | sort -u)
+  fi
+  if (( ${#cands[@]} == 0 )); then
+    record_incoming
+    return 0
+  fi
+  if ! registry_build 2>/dev/null; then
+    record_incoming "${cands[@]}"
+    return 0
+  fi
+  local cand regrow verdict unsaved
+  for cand in "${cands[@]}"; do
+    regrow=$(registry_row_for "$cand" 2>/dev/null) || continue
+    verdict=$(state_verdict "$regrow" 2>/dev/null) || { keep+=("$cand"); continue; }
+    unsaved=$(awk '{print $3}' <<<"$verdict" 2>/dev/null || true)
+    [[ "$unsaved" == true ]] || continue
+    keep+=("$cand")
+  done
+  if (( ${#keep[@]} == 0 )); then
+    record_incoming
+  else
+    record_incoming "${keep[@]}"
+  fi
+  return 0
+}
+
 # Used by the replicant CLI wrapper
 # core_incoming <before-rev> <after-rev> — which tracked entries a pull moved.
 # Written down for the panel and printed for the caller.
+#
+# The file keeps the union of earlier unresolved markers and the new ones: an
+# inventory-only pull must not wipe a pending config restore, and a second
+# config pull adds to the pending set instead of replacing it. Entries whose
+# copies now match clear on the next pull; the verdict already hides them from
+# status in the meantime.
 #
 # It lives here rather than in the CLI for the reason everything else does: the
 # mapping from a repo path back to the row a person can press a button on is
@@ -148,9 +203,13 @@ core_incoming() {
     esac
     rels+=("$(owning_rel "$rel")")
   done < <(git -C "$REPO_DIR" diff --name-only "$before" "$after" 2>/dev/null)
-  if (( ${#rels[@]} == 0 )); then record_incoming; return 0; fi
   local -a uniq=()
-  mapfile -t uniq < <(printf '%s\n' "${rels[@]}" | sort -u)
-  record_incoming "${uniq[@]}" || return 1
-  printf '%s\n' "${uniq[@]}"
+  if (( ${#rels[@]} )); then
+    mapfile -t uniq < <(printf '%s\n' "${rels[@]}" | sort -u)
+  fi
+  _incoming_merge_prune ${uniq[@]+"${uniq[@]}"} || return 1
+  if (( ${#uniq[@]} )); then
+    printf '%s\n' "${uniq[@]}"
+  fi
+  return 0
 }

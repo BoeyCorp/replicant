@@ -128,7 +128,7 @@ F02 can resume whenever its disposable environment exists; repeat affected scena
 | Urgent | F06 | Explicit private-repository verification | None | Completed |
 | Urgent | F07 | Restrictive secret and backup permissions | None | Completed |
 | Urgent | F08 | One effective secret scope | None | Completed |
-| Urgent | F09 | Durable incoming config markers | None | Pending |
+| Urgent | F09 | Durable incoming config markers | None | Completed |
 | Urgent | F10 | Encrypted incoming-change discovery | F08, F09 | Pending |
 | Urgent | F11 | Save protection for incoming secrets | F10 | Pending |
 | Urgent | F12 | Consistent repository readiness and status | None | Pending |
@@ -253,16 +253,26 @@ F02 can resume whenever its disposable environment exists; repeat affected scena
 
 - Finding and scope: R02; incoming state in `bin/lib/incoming.sh` and its consumers.
 - Tasks:
-  - [ ] Reproduce a config pull followed by an inventory-only or unchanged pull.
-  - [ ] Merge new incoming entries with unresolved entries instead of replacing the entire pending set.
-  - [ ] Remove markers only after a verified resolution, including existing explicit replacement actions.
+  - [x] Reproduce a config pull followed by an inventory-only or unchanged pull.
+  - [x] Merge new incoming entries with unresolved entries instead of replacing the entire pending set.
+  - [x] Remove markers only after a verified resolution, including existing explicit replacement actions.
 - Dependencies: none.
 - Acceptance: repeated pulls cannot make stale local content eligible for an ordinary overwrite.
   Resolved entries clear correctly; unrelated profiles do not acquire incoming markers.
 - Required checks: `tests/test-save.sh`, `tests/test-state.sh`, `tests/test-journey.sh`;
   exercise two synthetic machines and interrupted or failed resolution.
 - Estimate and risk: 4–6 hours; avoid permanent false conflicts when files already match.
-- State: Pending.
+- State: Completed.
+- Evidence: `core_incoming` merges new rows with the existing file and prunes
+  only rows whose copies now match (verified via registry and status verdict);
+  inventory-only pulls preserve pending work and second config pulls add to it.
+  Other-profile paths stay filtered. `tests/test-state.sh` passes 111 checks
+  with merge, preserve, prune, and profile cases. `tests/test-save.sh`
+  passes 75 checks. `tests/test-journey.sh` passes 76 checks with two machines.
+  `manifest.json` 0.42.4 -> 0.42.5.
+- Changed files: `bin/lib/incoming.sh`, `tests/test-state.sh`,
+  `manifest.json`, `docs/TASKS.md`, `docs/ROADMAP.md`.
+- Commit: this commit.
 
 ### F10. Detect incoming encrypted changes
 
@@ -556,7 +566,7 @@ This update changes only `TASKS.md`, `TASKS-HISTORY.md`, and `ROADMAP.md`.
 
 ## Next action
 
-- Next phase: **F09**, durable incoming config markers.
-- Resume command: `$taskflow run F09`.
+- Next phase: **F10**, encrypted incoming-change discovery.
+- Resume command: `$taskflow run F10`.
 - Recommended effort: **medium**.
 - F02 remains blocked independently; do not wait for its environment before addressing confirmed data risks.

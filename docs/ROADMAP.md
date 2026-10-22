@@ -1,10 +1,15 @@
 # Roadmap
 
 The executable plan, dependencies, acceptance criteria, and evidence are in [TASKS.md](TASKS.md).
-F06–F08 are implemented in this checkout; F09 is next.
+F06–F09 are implemented in this checkout; F10 is next.
 
 ## Completed
 
+- F09 merges incoming markers across pulls and prunes only resolved rows:
+  inventory-only pulls preserve pending work, second config pulls add to it,
+  and other-profile paths stay filtered. Covered in `tests/test-state.sh`
+  (111 checks), `tests/test-save.sh` (75 checks), and `tests/test-journey.sh`
+  (76 checks). Shipped as 0.42.5.
 - F08 keeps the vault index scope authoritative: Off stays Off with unchanged
   ciphertext through ordinary saves, shared still saves, profile stays
   rejected, and single Off saves refuse. Covered in `tests/test-crypto.sh`
@@ -65,7 +70,7 @@ F06–F08 are implemented in this checkout; F09 is next.
 4. **Evolution, F26:** optionally add direct Restore section navigation from the F05 proposal.
    Keep the existing four tabs; do not treat this proposal as a required defect correction.
 
-Start with **F09**. F02 can resume independently when its disposable environment is available.
+Start with **F10**. F02 can resume independently when its disposable environment is available.
 Production readiness still requires F02 and the real-runtime evidence in F23.
 No phase authorizes remote publication or changes to the active installation through this plan.
 

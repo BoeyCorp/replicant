@@ -340,4 +340,51 @@ check "…and the same entry rows" "$(jq -r '.entries | length' <<<"$full_state"
 check "deferring combines with brief" "true" "$(core_status --json --brief --defer-settings 2>/dev/null | tail -n1 | jq -r '.brief')"
 check "deferring answers uninitialized honestly" "false" "$(REPO_DIR="$TMP/no-repo-here" core_status --json --defer-settings 2>/dev/null | tail -n1 | jq -r '.initialized')"
 
+section "a later pull merges incoming instead of replacing it"
+printf 'state-merge live\n' > "$HOME/.config/hypr/input.lua"
+printf 'state-merge live look\n' > "$HOME/.config/hypr/looknfeel.lua"
+core_backup >/dev/null 2>&1
+git -C "$REPO_DIR" add -A >/dev/null 2>&1
+git -C "$REPO_DIR" commit -qm "state merge base" >/dev/null 2>&1 || true
+printf 'state-merge remote\n' > "$REPO_DIR/config/hypr/input.lua"
+git -C "$REPO_DIR" add -A >/dev/null 2>&1
+git -C "$REPO_DIR" commit -qm "state merge remote input" >/dev/null 2>&1 || true
+merge_before=$(git -C "$REPO_DIR" rev-parse HEAD~1 2>/dev/null)
+merge_after=$(git -C "$REPO_DIR" rev-parse HEAD 2>/dev/null)
+core_incoming "$merge_before" "$merge_after" >/dev/null 2>&1
+check "a config pull records the row" "hypr/input.lua" "$(cat "$REPLICANT_HOME/incoming" 2>/dev/null)"
+mkdir -p "$REPO_DIR/state/merge-probe"
+printf '{"probe":1}\n' > "$REPO_DIR/state/merge-probe/inv.json"
+git -C "$REPO_DIR" add -A >/dev/null 2>&1
+git -C "$REPO_DIR" commit -qm "state merge inventory" >/dev/null 2>&1 || true
+inv_before=$(git -C "$REPO_DIR" rev-parse HEAD~1 2>/dev/null)
+inv_after=$(git -C "$REPO_DIR" rev-parse HEAD 2>/dev/null)
+core_incoming "$inv_before" "$inv_after" >/dev/null 2>&1
+check "an inventory-only pull preserves the pending marker" "hypr/input.lua" "$(cat "$REPLICANT_HOME/incoming" 2>/dev/null)"
+printf 'state-merge remote look\n' > "$REPO_DIR/config/hypr/looknfeel.lua"
+git -C "$REPO_DIR" add -A >/dev/null 2>&1
+git -C "$REPO_DIR" commit -qm "state merge remote look" >/dev/null 2>&1 || true
+look_before=$(git -C "$REPO_DIR" rev-parse HEAD~1 2>/dev/null)
+look_after=$(git -C "$REPO_DIR" rev-parse HEAD 2>/dev/null)
+core_incoming "$look_before" "$look_after" >/dev/null 2>&1
+check "a second config pull merges instead of replacing" "2" "$(grep -c . "$REPLICANT_HOME/incoming" 2>/dev/null || true)"
+check_contains "…keeping the first row" "hypr/input.lua" "$(cat "$REPLICANT_HOME/incoming" 2>/dev/null)"
+check_contains "…and adding the second" "hypr/looknfeel.lua" "$(cat "$REPLICANT_HOME/incoming" 2>/dev/null)"
+cp "$REPO_DIR/config/hypr/input.lua" "$HOME/.config/hypr/input.lua"
+core_incoming "$look_after" "$look_after" >/dev/null 2>&1
+check "a resolved row clears while the other stays" "hypr/looknfeel.lua" "$(cat "$REPLICANT_HOME/incoming" 2>/dev/null)"
+other_prof="otherprofileprobe"
+[[ "$(current_profile)" == "$other_prof" ]] && other_prof="anotherprofileprobe"
+mkdir -p "$REPO_DIR/profiles/$other_prof/config/hypr"
+printf 'other profile copy\n' > "$REPO_DIR/profiles/$other_prof/config/hypr/input.lua"
+git -C "$REPO_DIR" add -A >/dev/null 2>&1
+git -C "$REPO_DIR" commit -qm "state merge other profile" >/dev/null 2>&1 || true
+other_before=$(git -C "$REPO_DIR" rev-parse HEAD~1 2>/dev/null)
+other_after=$(git -C "$REPO_DIR" rev-parse HEAD 2>/dev/null)
+core_incoming "$other_before" "$other_after" >/dev/null 2>&1
+check "another profile does not acquire a marker" "hypr/looknfeel.lua" "$(cat "$REPLICANT_HOME/incoming" 2>/dev/null)"
+cp "$REPO_DIR/config/hypr/looknfeel.lua" "$HOME/.config/hypr/looknfeel.lua" 2>/dev/null || true
+record_incoming
+check "clearing the record empties the pending set" "" "$(cat "$REPLICANT_HOME/incoming" 2>/dev/null || true)"
+
 summary
