@@ -429,6 +429,25 @@ vault_sha=$(git -C "$REPO_DIR" rev-parse HEAD 2>/dev/null)
 check_contains "a vault-only deletion is listed" "env/60-secrets.conf" "$(core_deleted 2>&1)"
 check "…in JSON with the secret file" "env/60-secrets.conf" "$(core_deleted --json 2>/dev/null | jq -r --arg s "$vault_sha" '.[] | select(.sha == $s) | .files[0]')"
 check_contains "…and recover finds it" "env/60-secrets.conf" "$(core_recover "$vault_sha" 2>&1 || true)"
+
+section "secret-only recovery restores the vault through a transaction"
+head_before=$(git -C "$REPO_DIR" rev-parse HEAD 2>/dev/null)
+check_true "recover --apply restores a vault-only deletion" core_recover_transact "$vault_sha"
+check "…in one commit" "1" "$(git -C "$REPO_DIR" rev-list --count "$head_before"..HEAD 2>/dev/null)"
+check "…with the secret back in the index" "env/60-secrets.conf" \
+  "$(vault_index_decrypt 2>/dev/null | jq -r '.secrets[] | select(.id=="env/60-secrets.conf") | .id')"
+recovered_blob=$(vault_index_decrypt 2>/dev/null | jq -r '.secrets[] | select(.id=="env/60-secrets.conf") | .blob')
+check "…with its blob tracked in git" "1" \
+  "$(git -C "$REPO_DIR" ls-files "vault/blobs/$recovered_blob.age" 2>/dev/null | grep -c . || true)"
+check "…with a clean tree" "0" "$(git -C "$REPO_DIR" status --porcelain 2>/dev/null | grep -c . || true)"
+check "…and decrypting to the deleted content" "1" \
+  "$(age -d -i "$KEYS" "$REPO_DIR/vault/blobs/$recovered_blob.age" 2>/dev/null | grep -c crypto-fixture-back || true)"
+check "…and back on the machine" "1" \
+  "$(grep -c crypto-fixture-back "$HOME/.config/environment.d/60-secrets.conf" 2>/dev/null || true)"
+check "…so deleted no longer lists it" "0" \
+  "$(core_deleted --json 2>/dev/null | jq --arg s "$vault_sha" '[.[] | select(.sha == $s)] | length')"
+second_out=$(core_recover_transact "$vault_sha" 2>&1 || true)
+check_contains "…and a second recovery reports nothing missing" "deleted nothing" "$second_out"
 mv "$KEYS" "$TMP/identity.keep"
 locked_out=$(core_deleted 2>&1)
 check_contains "locked history says so explicitly" "cannot read vault history" "$locked_out"

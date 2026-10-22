@@ -384,16 +384,29 @@ F02 can resume whenever its disposable environment exists; repeat affected scena
 
 - Finding and scope: mutation portion of R06; `core_recover`, vault recovery, and transactions.
 - Tasks:
-  - [ ] Route a vault-only recovery through the existing transaction even when no config path is selected.
-  - [ ] Restore the relevant index entry and blob without replacing unrelated current vault entries.
-  - [ ] Preserve preview, retry, and failed-push recovery behavior.
+  - [x] Route a vault-only recovery through the existing transaction even when no config path is selected.
+  - [x] Restore the relevant index entry and blob without replacing unrelated current vault entries.
+  - [x] Preserve preview, retry, and failed-push recovery behavior.
 - Dependencies: F12 and F13.
 - Acceptance: recovery of one deleted secret succeeds and preserves unrelated current data.
   Key or blob failures leave the repository unchanged and keep an actionable error.
 - Required checks: `tests/test-crypto.sh`, `tests/test-journey.sh`, `tests/test-transaction.sh`,
   and `tests/test-interruptions.sh`; verify mixed and secret-only histories.
 - Estimate and risk: 4–6 hours; do not imply that missing historical keys can be reconstructed.
-- State: Pending.
+- State: Completed.
+- Evidence: `core_recover` now checks each deleted path against the parent
+  commit and only checks out copies that exist there; vault-only IDs skip
+  checkout and return via `recover_vault`, while the transaction still
+  commits `vault/index.age` and `vault/blobs` through the shared policy
+  stores. `tests/test-crypto.sh` grows from 138 to 147 checks with
+  vault-only transact, blob-tracked, clean-tree, live-restore, and
+  second-recovery cases. `tests/test-journey.sh` passes 76 checks,
+  `tests/test-transaction.sh` passes 73 checks, and
+  `tests/test-interruptions.sh` passes 12 checks. `manifest.json` 0.42.9
+  -> 0.42.10.
+- Changed files: `bin/lib/history.sh`, `tests/test-crypto.sh`,
+  `manifest.json`, `docs/TASKS.md`, `docs/ROADMAP.md`.
+- Commit: this commit.
 
 ## Important: complete and explain user operations
 

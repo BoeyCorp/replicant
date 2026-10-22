@@ -1,10 +1,16 @@
 # Roadmap
 
 The executable plan, dependencies, acceptance criteria, and evidence are in [TASKS.md](TASKS.md).
-F06–F13 are implemented in this checkout; F14 is next.
+F06–F14 are implemented in this checkout; F15 is next.
 
 ## Completed
 
+- F14 routes vault-only recovery through the existing transaction without a
+  config checkout: the vault index and blob return, the copy restores onto
+  the machine, and the commit uses the shared policy stores. Covered in
+  `tests/test-crypto.sh` (147 checks), `tests/test-journey.sh` (76 checks),
+  `tests/test-transaction.sh` (73 checks), and
+  `tests/test-interruptions.sh` (12 checks). Shipped as 0.42.10.
 - F13 lists vault-only deletions as secret IDs and reports unreadable vault
   history explicitly without values. Covered in `tests/test-crypto.sh` (138
   checks), `tests/test-journey.sh` (76 checks), and `tests/test-leaks.sh` (18

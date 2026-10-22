@@ -284,7 +284,19 @@ core_recover() {
   # save prunes the copy again.
   recover_entries "$sha" || return 1
   recover_vault "$sha" || return 1
-  git -C "$REPO_DIR" checkout -q "$sha^" -- "${files[@]}" || { echo "recover: git could not restore the copies" >&2; return 1; }
+  # Vault-only deletions resolve to secret IDs, not repo copies: they have no
+  # path to checkout, their content returns via recover_vault above. Only
+  # checkout paths that exist in the parent commit.
+  local -a checkout_paths=()
+  local f
+  for f in "${files[@]}"; do
+    if git -C "$REPO_DIR" cat-file -e "$sha^:$f" 2>/dev/null; then
+      checkout_paths+=("$f")
+    fi
+  done
+  if (( ${#checkout_paths[@]} )); then
+    git -C "$REPO_DIR" checkout -q "$sha^" -- "${checkout_paths[@]}" || { echo "recover: git could not restore the copies" >&2; return 1; }
+  fi
   RECOVERED=("${files[@]}")
 
   # Each copy back onto the machine, through the entry that owns it. A file
